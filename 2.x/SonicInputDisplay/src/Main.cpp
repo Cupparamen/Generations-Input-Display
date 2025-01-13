@@ -72,6 +72,7 @@ SDL_Rect recFull = { 0,0,210,150 };
 SDL_Rect recMessage = { 0, 0, 0, 0, };
 SDL_Rect recMessage2 = { 0, 0, 0, 0, };
 
+SDL_Color White = { 255, 255, 255 };
 TTF_Font* Sans = nullptr;
 
 int JoyX = 0;
@@ -451,27 +452,9 @@ int main(int argc, char* argv[])
         SDL_SetRenderDrawColor(sdlRenderer, bgR, bgG, bgB, 0);
         SDL_RenderClear(sdlRenderer);
 
-         // this is the color in rgb format,
-        // maxing out all would give you the color white,
-        // and it will be your text's color
-        SDL_Color White = { 255, 255, 255 };
-
-        // as TTF_RenderText_Solid could only be used on
-        // SDL_Surface then you have to create the surface first
-            surfaceMessage =
-                TTF_RenderText_Solid(Sans, messageToDisplay.c_str(), White);
-            surfaceMessage2 =
-                TTF_RenderText_Solid(Sans, messageToDisplay2.c_str(), White);
-            recMessage = { 92, (150 - surfaceMessage->h), surfaceMessage->w, surfaceMessage->h };
-            recMessage2 = { 134, (150 - surfaceMessage2->h), surfaceMessage2->w, surfaceMessage2->h };
-        
-        if (showMSpeedSwitch == true || toonSwitch == true) { UpdateAnimation(); }
+            if (showMSpeedSwitch == true || toonSwitch == true) { UpdateAnimation(); }
    
-            
-            if (texMessage != nullptr) { SDL_DestroyTexture(texMessage); texMessage = nullptr; }
-            if (texMessage2 != nullptr) { SDL_DestroyTexture(texMessage2); texMessage2 = nullptr; }
-            texMessage = SDL_CreateTextureFromSurface(sdlRenderer, surfaceMessage);
-            texMessage2 = SDL_CreateTextureFromSurface(sdlRenderer, surfaceMessage2);
+ 
             if (showCoordinatesSwitch == true) {
             SDL_RenderCopy(sdlRenderer, texMessage, nullptr, &recMessage);
             SDL_RenderCopy(sdlRenderer, texMessage2, nullptr, &recMessage2);
@@ -587,52 +570,16 @@ static void speedCheck(float cordX, float cordY)
     if (stickSensitivitySwitch == true) {
 
 
-        
+        mSpeed = false;
         // Checks for M-Speed to change the color of the reticle
 
-        // Positives for Corner Cases
-        switch (crdX) {
-
-        // Right & Left M-Speed
-        //case 36: case -36:
-          //  if (crdY >= -1 && crdY <= 1) { mSpeed = true; }
-           // break;
-            // Up-Left & Down-Left M-Speed
-        //case -34: case -35:
-          //  if (crdY == -36 || crdY == 35) { mSpeed = true; }
-           // break;
-        default:
-        mSpeed = false;
-        break;
-        }
         if ((cordY * 128) >= 35 && (cordY * 128) <= 36.7 && crdX >= -35 && crdX <= 35) { mSpeed = true; } // Handles Northern Slice
         if ((cordY * 128) <= -35 && (cordY * 128) >= -36.7 && crdX >= -35 && crdX <= 35) { mSpeed = true; } // Handles Southern Slice
         if ((cordX * 128) >= 36 && (cordX * 128) <= 37.7 && crdY >= -35 && crdY <= 35) { mSpeed = true; } // Handles Western Slice
         if ((cordX * 128) <= -36 && (cordX * 128) >= -37.7 && crdY >= -35 && crdY <= 35) { mSpeed = true; } // Handles Eastern Slice
     }
     else {
-        // Checks for M-Speed to change the color of the reticle
-        switch (crdX) {
-            // Up and Crisis M-Speed
-        //case 0: case 1: case -1: case 16: case 17: case 18: case -17: case -18:
-           // if (crdY == 38 || crdY == 39) { mSpeed = true; }
-           // break;
-            // Up-Right & Down-Right M-Speed
-        //case 36: case 37:
-         //   if (crdY == 36 || crdY == 37 || crdY == -38 || crdY == -39) { mSpeed = true; }
-          //  break;
-            // Right & Left M-Speed
-        //case 38: case 39: case -39: case -40:
-        //    if (crdY >= -1 && crdY <= 1) { mSpeed = true; }
-        //    break;
-            // Up-Left & Down-Left M-Speed
-        //case -36: case -37:
-       //     if (crdY == 36 || crdY == 37 || crdY == -38 || crdY == -39) { mSpeed = true; }
-        //    break;
-        default:
-            mSpeed = false;
-            break;
-        }
+
         if ((cordY * 128) >= 38 && (cordY * 128) <= 41.5 && crdX >= -37 && crdX <= 37) { mSpeed = true; } // Handles Northern Slice
         if ((cordY * 128) <= -38 && (cordY * 128) >= -41.5 && crdX >= -37 && crdX <= 37) { mSpeed = true; } // Handles Southern Slice
         if ((cordX * 128) >= 38 && (cordX * 128) <= 41.7 && crdY >= -37 && crdY <= 37) { mSpeed = true; } // Handles Western Slice
@@ -783,7 +730,7 @@ void pollAndUpdateGameController()
 
 }
 
-int nextProcessCheck = 0;
+int nextProcessCheck = 400;
 
 void attachToGame()
 {
@@ -1389,6 +1336,17 @@ void UpdateAnimation()
 
 
         indexLast = animationIndexNumber;
+    }
+    if (showCoordinatesSwitch) {
+        surfaceMessage = TTF_RenderText_Solid(Sans, messageToDisplay.c_str(), White);
+        surfaceMessage2 = TTF_RenderText_Solid(Sans, messageToDisplay2.c_str(), White);
+        recMessage = { 92, (150 - surfaceMessage->h), surfaceMessage->w, surfaceMessage->h };
+        recMessage2 = { 134, (150 - surfaceMessage2->h), surfaceMessage2->w, surfaceMessage2->h };
+
+        if (texMessage != nullptr) { SDL_DestroyTexture(texMessage); texMessage = nullptr; }
+        if (texMessage2 != nullptr) { SDL_DestroyTexture(texMessage2); texMessage2 = nullptr; }
+        texMessage = SDL_CreateTextureFromSurface(sdlRenderer, surfaceMessage);
+        texMessage2 = SDL_CreateTextureFromSurface(sdlRenderer, surfaceMessage2);
     }
 
 }
