@@ -1,6 +1,7 @@
 # Generations Input Display
 
 Made some modifications to be more useful for Sonic Generations
+( original -> **https://github.com/TurtleMan64/SADX-SA2-Input-Display**)
 
 Changes to the original:
 - De-coupled the D-Pad from the joystick and added D-Pad buttons. Coupling can be toggled (F5).
