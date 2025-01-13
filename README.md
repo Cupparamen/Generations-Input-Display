@@ -2,18 +2,29 @@ Made some modifications to be more useful for Sonic Generations
 
 
 Changes to the original:
+
 De-coupled the D-Pad from the joystick and added D-Pad buttons. Coupling can be toggled (F5).
+
 De-coupled the triggers and shoulder buttons and added trigger buttons.
+
 Fixed issue where the thinner line on the ring was drawing outside the boundary
+
 Re-arranged buttons to accommodate above changes.
 
 New Features:
+
 Added a toggle-able coordinate display (F1).
+
 Added a toggle-able animated toon (F2) to the bottom right corner.
+
 Added a toggle-able M-Speed light (F3) that makes the ring and pointer light up when the joystick's X and Y
+
 match the known M-Speed formula. Stick sensitivity should be set to 50 in-game. This will show an "M" on the corner of the display.
+
 Added a toggle-able "100 Stick Sensitivity" mode (F4) that adjusted the M-Speed formula to match
+
 values found with the stick sensitivity set to 100. This will show "100" at the corner of the display and is only visible when the
+
 M-Speed light is enabled.
 
 From TurtleMan64:
