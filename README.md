@@ -3,6 +3,9 @@
 Made some modifications to be more useful for Sonic Generations
 ( original -> **https://github.com/TurtleMan64/SADX-SA2-Input-Display**)
 
+EXE:
+**https://github.com/Cupparamen/Generations-Input-Display/releases/tag/release**
+
 Changes to the original:
 - De-coupled the D-Pad from the joystick and added D-Pad buttons. Coupling can be toggled (F5).
 
@@ -33,7 +36,7 @@ Compatable games list:
 If there are no games to read inputs from, then your controller will be read from directly.
 
 ### Download the exe:     
-https://github.com/TurtleMan64/SADX-SA2-Input-Display/releases/latest     
+https://github.com/TurtleMan64/SADX-SA2-Input-Display/releases/latest (original input display)
 
 ### Additional Features
  * You can switch between skins by using left/right arrow keys on your keyboard. New skins can be added by simply creating a new folder with the same filenames in them.
