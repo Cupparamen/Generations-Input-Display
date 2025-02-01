@@ -1,4 +1,4 @@
-[Gens Input Display 3.1]
+[Gens Input Display 3.2]
 Built off of TurtleMan64's Sonic Input Display v2.2.
 
 [Features]
@@ -35,8 +35,13 @@ F5 - Toggle D-Pad + Joystick Coupling
 Extra special thanks to Khroma for testing 100 stick sensitivity mode! I was able to use that information to come up with a fairly accurate M-Speed Equation to test against instead of individual coordinates!
 
 [Change Log]
-<3.1> Changed the way coordinates are displayed to try to mitigate slowdown
-<3.0> Fixed massive memory leak, and added MSpeed equations for both regular and 100 Stick Sensitivity Mode
+<3.2> 	-Fixed crash with Coordinates switch
+	-Capped framerate to help with CPU usage
+	-Adjusted MSpeed equations to include edge cases
+<3.1> 	-Fixed massive memory leak 
+	-Added MSpeed equations for both regular and 100 Stick Sensitivity Mode
+
+	
 
 [Credits]
 Kyrrone: Original creator of the M/D Speed template
