@@ -24,7 +24,6 @@ SDL_Renderer* sdlRenderer = nullptr;
 SDL_Texture* imgBase       = nullptr;
 SDL_Texture* imgBaseM      = nullptr;
 SDL_Texture* imgStick      = nullptr;
-SDL_Texture* imgStickSmall = nullptr;
 SDL_Texture* imgStickSmallM = nullptr;
 SDL_Texture* imgA          = nullptr;
 SDL_Texture* imgB          = nullptr;
@@ -311,6 +310,7 @@ int main(int argc, char* argv[])
             Switch5 = (char)std::stoi(switchValues[4]);
             if (std::to_string(Switch1) == "1") {
                 showCoordinatesSwitch = 1;
+
             }
             else { showCoordinatesSwitch = 0; }
             if (std::to_string(Switch2) == "1") {
@@ -332,13 +332,9 @@ int main(int argc, char* argv[])
         }
 
     }
-
-
-
     skinFolders = getSkinFolders("./");
 
     loadImages();
-
     bool running = true;
     while (running)
     {
@@ -376,45 +372,36 @@ int main(int argc, char* argv[])
                 {
                     folderIndex = ((int)skinFolders.size()) - 1;
                 }
-
                 if (keyEv->keysym.sym == SDLK_F1)
                 {
                     showCoordinatesSwitch = !showCoordinatesSwitch;
-
                 }
                 if (keyEv->keysym.sym == SDLK_F2)
                 {
                     toonSwitch = !toonSwitch;
-
                 }
                 if (keyEv->keysym.sym == SDLK_F3)
                 {
                     showMSpeedSwitch = !showMSpeedSwitch;
-
                 }
                 if (keyEv->keysym.sym == SDLK_F4)
                 {
                     stickSensitivitySwitch = !stickSensitivitySwitch;
-
                 }
                 if (keyEv->keysym.sym == SDLK_F5)
                 {
                     dPadSwitch = !dPadSwitch;
-
                 }
                 if (keyEv->keysym.sym == SDLK_h)
                 {
                     showHelpSwitch = !showHelpSwitch;
-
                 }
                 break;
             }
-
             default:
                 break;
             }
         }
-
         A = 0;
         B = 0;
         X = 0;
@@ -452,10 +439,10 @@ int main(int argc, char* argv[])
         SDL_SetRenderDrawColor(sdlRenderer, bgR, bgG, bgB, 0);
         SDL_RenderClear(sdlRenderer);
 
-            if (showMSpeedSwitch == true || toonSwitch == true) { UpdateAnimation(); }
+        if (showMSpeedSwitch == true || toonSwitch == true) { UpdateAnimation(); }
    
  
-            if (showCoordinatesSwitch == true) {
+        if (showCoordinatesSwitch == true) {
             SDL_RenderCopy(sdlRenderer, texMessage, nullptr, &recMessage);
             SDL_RenderCopy(sdlRenderer, texMessage2, nullptr, &recMessage2);
         }
@@ -465,8 +452,6 @@ int main(int argc, char* argv[])
         }
         SDL_FreeSurface(surfaceMessage);
         SDL_FreeSurface(surfaceMessage2);
-
-
 
         SDL_RenderCopy(sdlRenderer, imgBase, nullptr, &recBase);
         if (toonSwitch != 0) {
@@ -485,10 +470,9 @@ int main(int argc, char* argv[])
                 }
             }
         }
-        if (showCoordinatesSwitch == true){
+        if (showCoordinatesSwitch == true) {
             updateText(JoyX, JoyY);
         }
-
         int drawX = 144 + ((64*JoyX)/128);
         int drawY = 72  - ((64*JoyY)/128);
         SDL_Rect recStickSmall = {drawX - 4, drawY - 4, 8, 8};
@@ -510,10 +494,7 @@ int main(int argc, char* argv[])
             SDL_RenderDrawLine(sdlRenderer, 144 - 0, 72 - 1, drawCapX - 0, drawCapY - 1);
             SDL_RenderDrawLine(sdlRenderer, 144 - 1, 72 - 1, drawCapX - 1, drawCapY - 1);
         }
-        SDL_SetRenderDrawColor(sdlRenderer, bgR, bgG, bgB, 0);
-
-        SDL_RenderCopy(sdlRenderer, imgStickSmall, nullptr, &recStick);
- 
+        SDL_SetRenderDrawColor(sdlRenderer, bgR, bgG, bgB, 0); 
         SDL_RenderCopy(sdlRenderer, imgStick, nullptr, &recStick);
         if (mSpeed != 0 && showMSpeedSwitch !=0) { SDL_RenderCopy(sdlRenderer, imgStickSmallM, nullptr, &recStick); }
         if (A != 0) { SDL_RenderCopy(sdlRenderer, imgA, nullptr, &recA); }
@@ -543,7 +524,7 @@ int main(int argc, char* argv[])
         SDL_RenderCopy(sdlRenderer, textureTransparent, nullptr, nullptr);
         SDL_RenderPresent(sdlRenderer);
 
-        //SDL_Delay(0.01);
+        SDL_Delay(16);
         if (folderIndexLast != folderIndex) { reloadImages(); }
 
     }
@@ -564,26 +545,26 @@ SDL_GameController* controller = nullptr;
 
 static void speedCheck(float cordX, float cordY)
 {
+    mSpeed = false;
     int crdX = (int)(cordX * 128);
     int crdY = (int)(cordY * 128);
     // Check if 100 Stick Sensitivity option is enabled and adjusts
     if (stickSensitivitySwitch == true) {
-
-
-        mSpeed = false;
         // Checks for M-Speed to change the color of the reticle
-
+        //100 Stick Sense
         if ((cordY * 128) >= 35 && (cordY * 128) <= 36.7 && crdX >= -35 && crdX <= 35) { mSpeed = true; } // Handles Northern Slice
         if ((cordY * 128) <= -35 && (cordY * 128) >= -36.7 && crdX >= -35 && crdX <= 35) { mSpeed = true; } // Handles Southern Slice
         if ((cordX * 128) >= 36 && (cordX * 128) <= 37.7 && crdY >= -35 && crdY <= 35) { mSpeed = true; } // Handles Western Slice
         if ((cordX * 128) <= -36 && (cordX * 128) >= -37.7 && crdY >= -35 && crdY <= 35) { mSpeed = true; } // Handles Eastern Slice
     }
     else {
-
-        if ((cordY * 128) >= 38 && (cordY * 128) <= 41.5 && crdX >= -37 && crdX <= 37) { mSpeed = true; } // Handles Northern Slice
-        if ((cordY * 128) <= -38 && (cordY * 128) >= -41.5 && crdX >= -37 && crdX <= 37) { mSpeed = true; } // Handles Southern Slice
-        if ((cordX * 128) >= 38 && (cordX * 128) <= 41.7 && crdY >= -37 && crdY <= 37) { mSpeed = true; } // Handles Western Slice
-        if ((cordX * 128) <= -38 && (cordX * 128) >= -41.7 && crdY >= -37 && crdY <= 37) { mSpeed = true; } // Handles Eastern Slice
+        //50 Stick Sense
+        if ((cordY * 128) >= 37 && (cordY * 128) <= 41 && crdX >= -37 && crdX <= 37) { mSpeed = true; } // Handles Northern Slice
+        if ((cordY * 128) <= -38 && (cordY * 128) >= -41 && crdX >= -37 && crdX <= 37) { mSpeed = true; } // Handles Southern Slice
+        if ((cordX * 128) >= 37 && (cordX * 128) <= 41 && crdY >= -36 && crdY <= 35) { mSpeed = true; } // Handles Eastern Slice
+        if ((cordX * 128) <= -37 && (cordX * 128) >= -41 && crdY >= -37 && crdY <= 36) { mSpeed = true; } // Handles Western Slice
+        if (crdX == 36 && crdY == 36) { mSpeed = true; }  // Up-Right case 
+        if (crdX == -36 && crdY == 36) { mSpeed = true; } // Up-Left case      
     }
 }
 
@@ -651,13 +632,10 @@ void pollAndUpdateGameController()
         float trigL = triggerL / 32768.0f;
         float trigR = triggerR / 32768.0f;
 
-
-
         if (trigL > 0.5f)
         {
             tlFlag = 1;
         }
-
         if (trigR > 0.5f)
         {
             trFlag = 1;
@@ -685,6 +663,7 @@ void pollAndUpdateGameController()
         }
         else { pDown = 0; }
 
+
         if (dPadSwitch == true)
         {
             if (dr != 0)
@@ -704,9 +683,7 @@ void pollAndUpdateGameController()
             {
                 joyY = -1.0f;
             }
-        }
-    
-       
+        } 
     }
 
     A = a;
@@ -725,9 +702,7 @@ void pollAndUpdateGameController()
     JoyY = (int)(joyY * 127);
 
     mSpeed = false;
-    speedCheck(joyX, joyY);
-
-
+    if (showMSpeedSwitch) { speedCheck(joyX, joyY); }
 }
 
 int nextProcessCheck = 400;
@@ -1195,9 +1170,7 @@ std::vector<std::string> getSkinFolders(const std::string &directory)
             }
         }
     }
-
     FindClose(hFind);
-
     return skins;
 }
 void loadImages()
@@ -1230,29 +1203,18 @@ void loadImages()
     imgDown = IMG_LoadTexture(sdlRenderer, (folder + "/buttDown.png").c_str());
     imgLeft = IMG_LoadTexture(sdlRenderer, (folder + "/buttLeft.png").c_str());
     imgRight = IMG_LoadTexture(sdlRenderer, (folder + "/buttRight.png").c_str());
-    imgStickSmall = IMG_LoadTexture(sdlRenderer, (folder + "/stickSmall.png").c_str());
     imgStickSmallM = IMG_LoadTexture(sdlRenderer, (folder + "/stickSmallM.png").c_str());
 
     if (timerValue <= 10) {
-        imgHelp1 = IMG_LoadTexture(sdlRenderer, (folder + "/help.png").c_str());
-        imgHelp2 = IMG_LoadTexture(sdlRenderer, (folder + "/help2.png").c_str());
-        fontPath = folder + "/ARLRDBD.ttf";
-        Sans = TTF_OpenFont(fontPath.c_str(), 11);
-    }
+       imgHelp1 = IMG_LoadTexture(sdlRenderer, (folder + "/help.png").c_str());
+       imgHelp2 = IMG_LoadTexture(sdlRenderer, (folder + "/help2.png").c_str());
+       fontPath = folder + "/ARLRDBD.ttf";
+       Sans = TTF_OpenFont(fontPath.c_str(), 11);
+   }
     folderIndexLast = folderIndex;
-
 }
-
 void reloadImages()
-{
-    if (folderIndex < 0 || folderIndex >= (int)skinFolders.size())
-    {
-        folderIndex = 0;
-    }
-
-    std::string folder = skinFolders[folderIndex];
-    std::string indexString = std::to_string(animationIndexNumber);
-    
+{ 
     if (imgBase        != nullptr) { SDL_DestroyTexture(imgBase      ); imgBase       = nullptr; }
     if (imgBaseM       != nullptr) { SDL_DestroyTexture(imgBaseM     ); imgBaseM      = nullptr; }
     if (imgBaseToon    != nullptr) { SDL_DestroyTexture(imgBaseToon  ); imgBaseToon   = nullptr; }
@@ -1271,19 +1233,12 @@ void reloadImages()
     if (imgDown        != nullptr) { SDL_DestroyTexture(imgDown      ); imgDown       = nullptr; }
     if (imgLeft        != nullptr) { SDL_DestroyTexture(imgLeft      ); imgLeft       = nullptr; }
     if (imgRight       != nullptr) { SDL_DestroyTexture(imgRight     ); imgRight      = nullptr; }
-    if (imgStickSmall  != nullptr) { SDL_DestroyTexture(imgStickSmall); imgStickSmall = nullptr; }
     if (imgStickSmallM != nullptr) { SDL_DestroyTexture(imgStickSmallM); imgStickSmallM = nullptr; }
     if (imgSS          != nullptr) { SDL_DestroyTexture(imgSS        ); imgSS         = nullptr; }
     if (imgMSM         != nullptr) { SDL_DestroyTexture(imgMSM       ); imgMSM        = nullptr; }
     if (imgHelp1       != nullptr) { SDL_DestroyTexture(imgHelp1     ); imgHelp1      = nullptr; }
     
     loadImages();
-
-    if (timerValue <= 10) {
-        imgHelp1 = IMG_LoadTexture(sdlRenderer, (folder + "/help.png").c_str());
-        imgHelp2 = IMG_LoadTexture(sdlRenderer, (folder + "/help2.png").c_str());
-        fontPath = folder + "/ARLRDBD.ttf";
-    }
 }
 void cleanUp() {
     if (imgBase != nullptr) { SDL_DestroyTexture(imgBase); imgBase = nullptr; }
@@ -1304,7 +1259,6 @@ void cleanUp() {
     if (imgDown != nullptr) { SDL_DestroyTexture(imgDown); imgDown = nullptr; }
     if (imgLeft != nullptr) { SDL_DestroyTexture(imgLeft); imgLeft = nullptr; }
     if (imgRight != nullptr) { SDL_DestroyTexture(imgRight); imgRight = nullptr; }
-    if (imgStickSmall != nullptr) { SDL_DestroyTexture(imgStickSmall); imgStickSmall = nullptr; }
     if (imgStickSmallM != nullptr) { SDL_DestroyTexture(imgStickSmallM); imgStickSmallM = nullptr; }
     if (imgSS != nullptr) { SDL_DestroyTexture(imgSS); imgSS = nullptr; }
     if (imgMSM != nullptr) { SDL_DestroyTexture(imgMSM); imgMSM = nullptr; }
@@ -1337,7 +1291,6 @@ void UpdateAnimation()
 
         indexLast = animationIndexNumber;
     }
-    if (showCoordinatesSwitch) {
         surfaceMessage = TTF_RenderText_Solid(Sans, messageToDisplay.c_str(), White);
         surfaceMessage2 = TTF_RenderText_Solid(Sans, messageToDisplay2.c_str(), White);
         recMessage = { 92, (150 - surfaceMessage->h), surfaceMessage->w, surfaceMessage->h };
@@ -1347,12 +1300,8 @@ void UpdateAnimation()
         if (texMessage2 != nullptr) { SDL_DestroyTexture(texMessage2); texMessage2 = nullptr; }
         texMessage = SDL_CreateTextureFromSurface(sdlRenderer, surfaceMessage);
         texMessage2 = SDL_CreateTextureFromSurface(sdlRenderer, surfaceMessage2);
-    }
 
 }
-
-
-
 
 void saveIndex()
 {
