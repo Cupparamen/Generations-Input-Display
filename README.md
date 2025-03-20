@@ -1,8 +1,8 @@
 # Gens Input Display 4.0
-
+(written by AI lol)
 Based on TurtleMan64's Sonic Input Display v2.2.
 
-Gens Input Display 4.0 is a dynamic controller input visualizer written in C++ using SDL2, SDL_image, and SDL_ttf. It captures real-time game controller inputs and converts them into a customizable visual overlay. This project is ideal for gamers and streamers who want an engaging, configurable display of their controller inputs.
+Gens Input Display 4.0 is a dynamic controller input visualizer written in C++ using SDL2, SDL_image, and SDL_ttf. It captures real-time game controller inputs and converts them into a customizable visual overlay. 
 
 ## Overview
 
