@@ -1,4 +1,4 @@
-#include <SDL/SDL_image.h>
+﻿#include <SDL/SDL_image.h>
 #include <SDL/SDL.h>
 #include <SDL/SDL_syswm.h>
 #include <SDL/SDL_hints.h>
@@ -9,1243 +9,746 @@
 #include <Winuser.h>
 
 #include <stdio.h>
+#include <algorithm>
 #include <vector>
 #include <string>
 #include <fstream>
+#include <cmath>
 
 #include "Getline.hpp"
 #include "Split.hpp"
+#include "DialogMenu.h"  // Include the dialog menu header
+
+// ===== Editable Pulse/Glow Parameters =====
+float pulseRate = 0.005f;   // Controls the speed of the pulse cycle (in cycles per millisecond scale)
+int pulseAmplitude = 6;     // Additional pixels added to the pulsing effect.
+int glowMinAlpha = 0;       // Minimum alpha value for the pulsing glow.
+// ===========================================
+
+// Global variables for folders, fonts, and messages
+std::string helpPath = "./help.png";
+std::string helpPath2 = "./help2.png";
+std::string fontPath = "./ARLRDBD.ttf";
+std::string messageToDisplay = "Init";
+std::string messageToDisplay2 = "Init";
+std::string messageToDisplay3 = "  M  ";
+
+// Global configuration for the joystick indicator (when not in M‑speed mode)
+SDL_Color joystickCircleColor = { 255, 255, 255, 255 }; // White
+SDL_Color joystickGlowColor = { 255, 0, 0, 255 }; // First glow color (editable in settings)
+SDL_Color secondGlowColor = { 177, 223, 255, 255 };   // Second glow color (change as desired)
+
+// Global containers for preloaded animation frames
+std::vector<SDL_Texture*> toonFrames;    // for normal mode
+std::vector<SDL_Texture*> toonMFrames;   // for mSpeed mode
+
+// Global ring settings 
+// When M‑speed is not active, these rings are drawn a default color
+int ringOuterRadius = 128;   // Outer radius of the first ring.
+int ringThickness = 8;       // Thickness of the first ring.
+SDL_Color ringColor = { 255, 255, 255, 255 };         // when not M‑speed
+SDL_Color ringOutlineColor = { 0, 0, 0, 255 };        // outline
 
 
+// Second ring settings
+int secondRingOuterRadius = 40;   // Outer radius of the second ring.
+int secondRingThickness = 4;      // Thickness of the second ring.
+SDL_Color secondRingColor = { 255, 255, 255, 255 };   // when not M‑speed
+SDL_Color secondRingOutlineColor = { 0, 0, 0, 255 };  // outline
 
+// First crosshair (a + sign with an X overlay, i.e. 8 lines)
+SDL_Color firstCrossColor = { 255, 0, 0, 255 };  // red
+int firstCrossThickness = 3;
+int firstCrossLength = 54;  // a few pixels larger than the second ring's radius
+
+// Global center coordinates.
+int centerX = 288;
+int centerY = 144;
+
+// Second crosshair (a simple + sign)
+SDL_Color secondCrossColor = { 255, 255, 255, 255 }; // white
+int secondCrossThickness = 4;
+int secondCrossLength = 12;  // adjust as desired
+
+//Global for shape
+int shapeIndex = 0;
+int shapeIndexMaximum = 3;
+
+float effectiveRadius = 0;
+
+// Global SDL objects and textures
 SDL_Window* sdlWindow = nullptr;
 SDL_Renderer* sdlRenderer = nullptr;
 
-SDL_Texture* imgBase       = nullptr;
-SDL_Texture* imgBaseM      = nullptr;
-SDL_Texture* imgStick      = nullptr;
-SDL_Texture* imgStickSmallM = nullptr;
-SDL_Texture* imgA          = nullptr;
-SDL_Texture* imgB          = nullptr;
-SDL_Texture* imgX          = nullptr;
-SDL_Texture* imgY          = nullptr;
-SDL_Texture* imgL          = nullptr;
-SDL_Texture* imgR          = nullptr;
-SDL_Texture* imgS          = nullptr;
-SDL_Texture* imgLT         = nullptr;
-SDL_Texture* imgRT         = nullptr;
-SDL_Texture* imgUp          = nullptr;
-SDL_Texture* imgRight       = nullptr;
-SDL_Texture* imgDown        = nullptr;
-SDL_Texture* imgLeft        = nullptr;
-SDL_Texture* texMessage     = nullptr;
-SDL_Texture* texMessage2    = nullptr;
-SDL_Texture* texMessage3    = nullptr;
-SDL_Texture* imgBaseToon        = nullptr;
-SDL_Texture* imgBaseToonM       = nullptr;
+SDL_Texture* imgBaseToon = nullptr;
+SDL_Texture* imgBaseToonM = nullptr;
+SDL_Texture* imgA = nullptr;
+SDL_Texture* imgB = nullptr;
+SDL_Texture* imgX = nullptr;
+SDL_Texture* imgY = nullptr;
+SDL_Texture* imgL = nullptr;
+SDL_Texture* imgR = nullptr;
+SDL_Texture* imgS = nullptr;
+SDL_Texture* imgLT = nullptr;
+SDL_Texture* imgRT = nullptr;
+SDL_Texture* imgUp = nullptr;
+SDL_Texture* imgRight = nullptr;
+SDL_Texture* imgDown = nullptr;
+SDL_Texture* imgLeft = nullptr;
 SDL_Texture* imgSS = nullptr;
 SDL_Texture* imgMSM = nullptr;
 SDL_Texture* imgHelp1 = nullptr;
 SDL_Texture* imgHelp2 = nullptr;
+SDL_Texture* texMessage = nullptr;
+SDL_Texture* texMessage2 = nullptr;
+SDL_Texture* texMessage3 = nullptr;
+SDL_Texture* ringTexture = nullptr;
+SDL_Texture* ringLayerTexture = nullptr;
+SDL_Texture* ringInnerLayerTexture = nullptr;
+
+// Off-screen texture for static shapes
+SDL_Texture* staticOverlayTexture = nullptr;
+bool staticOverlayDirty = true; // Mark as dirty initially
+
+
+
+
 SDL_Surface* surfaceMessage = nullptr;
 SDL_Surface* surfaceMessage2 = nullptr;
+SDL_Surface* surfaceMessage3 = nullptr;
+
+//speed check values
+// Define directional thresholds with your desired default values
+float NorthYFloor = 37.0f;
+float NorthYCeil = 41.0f;
+float NorthXFloor = -37.0f;
+float NorthXCeil = 39.9f;
+float WestYFloor = -36.0f;
+float WestYCeil = 38.81f;
+float WestXFloor = -41.0f;
+float WestXCeil = -37.0f;
+float EastYFloor = -36.0f;
+float EastYCeil = 38.32f;
+float EastXFloor = 37.0f;
+float EastXCeil = 41.0f;
+float SouthYFloor = -41.0f;
+float SouthYCeil = -38.0f;
+float SouthXFloor = -37.0f; 
+float SouthXCeil = 37.0f;   
+
+int CornerMin = -37;
+int CornerMax = 37;
+
+int CornerMinN = 0;
+int CornerMaxN = 0;
+
+// Global smoothed joystick values
+float smoothedJoyX = 0.0f;
+float smoothedJoyY = 0.0f;
+
+// Global configuration for the small circle (joystick indicator)
+int circleSize = 4;
+
+// Rectangle for drawing toon images (to preserve original position/size)
+SDL_Rect recBase = { 152, 8, 272, 272 };
+
+SDL_Rect recX = { 12, 144, 64, 64 };
+SDL_Rect recA = { 84, 144, 64, 64 };
+SDL_Rect recB = { 84, 72, 64, 64 };
+SDL_Rect recY = { 12, 72, 64, 64 };
+SDL_Rect recL = { 18, 32, 48, 32 };
+SDL_Rect recR = { 94, 32, 48, 32 };
+SDL_Rect recLT = { 18, 216, 48, 32 };
+SDL_Rect recRT = { 94, 216, 48, 32 };
+SDL_Rect recS = { 376, 10, 32, 32 };
+SDL_Rect recLeft = { 18, 252, 32, 32 };
+SDL_Rect recDown = { 80, 252, 32, 32 };
+SDL_Rect recUp = { 52, 252, 32, 32 };
+SDL_Rect recRight = { 114, 252, 32, 32 };
+SDL_Rect recSS = { 344, 268, 48, 32 };
+SDL_Rect recMSM = { 388, 268, 32, 32 };
+SDL_Rect recFull = { 0, 0, 420, 300 };
+SDL_Rect recMessage = { 184, 280, 0, 20 };
+SDL_Rect recMessage2 = { 268, 280, 0, 20 };
+SDL_Rect recMessage3 = { 380, 278, 34, 20 };
 
 
-SDL_Rect recBase = { 76,   4, 136, 136};  //use for base and animations
-SDL_Rect recX    = {  6, 72,  32,  32};
-SDL_Rect recA    = { 42, 72,  32,  32};
-SDL_Rect recB    = { 42,  36,  32,  32};
-SDL_Rect recY    = {  6,  36,  32,  32};
-SDL_Rect recL    = {  9,   16,  24,  16};
-SDL_Rect recR    = { 47,   16,  24,  16};
-SDL_Rect recLT   = { 9,   108,  24,  16 };
-SDL_Rect recRT   = { 47,   108,  24,  16 };
-SDL_Rect recS    = { 188,   5,  16,  16};
-SDL_Rect recLeft = {9, 126,  16,  16};
-SDL_Rect recDown = { 40, 126,  16,  16 };
-SDL_Rect recUp = { 26,  126,  16,  16 };
-SDL_Rect recRight = { 57,  126,  16,  16 };
-SDL_Rect recSS = { 172, 134, 24, 16 };
-SDL_Rect recMSM = { 194, 134, 16, 16 };
-SDL_Rect recFull = { 0,0,210,150 };
-SDL_Rect recMessage = { 0, 0, 0, 0, };
-SDL_Rect recMessage2 = { 0, 0, 0, 0, };
-
-SDL_Color White = { 255, 255, 255 };
+SDL_Color White = { 255, 255, 255, 255 };
 TTF_Font* Sans = nullptr;
+TTF_Font* SansMenu = nullptr;
 
+// Controller state variables
 int JoyX = 0;
 int JoyY = 0;
-int A    = 0;
-int B    = 0;
-int X    = 0;
-int Y    = 0;
-int L    = 0;
-int R    = 0;
-int S    = 0;
-int LT   = 0;
-int RT   = 0;
+int A = 0;
+int B = 0;
+int X = 0;
+int Y = 0;
+int L = 0;
+int R = 0;
+int S = 0;
+int LT = 0;
+int RT = 0;
 int pUp = 0;
 int pDown = 0;
 int pRight = 0;
 int pLeft = 0;
-
-bool tlFlag = 0;
-bool trFlag = 0;
+bool tlFlag = false;
+bool trFlag = false;
 
 int animationIndexNumber = 0;
 int indexLast = 0;
-
 int folderIndexLast = 0;
-
 bool mSpeed = false;
 bool showMSpeedSwitch = false;
-
 int folderIndex = 0;
-
-HANDLE processHandle = NULL;
-
-int gameId = -1;
-
 int timerValue = 0;
-
 bool controllerIsConnected = false;
 
 bool showCoordinatesSwitch = false;
 bool stickSensitivitySwitch = false;
 bool toonSwitch = true;
 bool dPadSwitch = false;
-bool showHelpSwitch = false;
+// (Removed old showHelpSwitch usage – h now opens the settings dialog)
 
+// Additional configuration variables
+bool thickLine = true;
+int stickR = 0, stickG = 0, stickB = 0; // Stick line color
+int bgR = 0, bgG = 0, bgB = 0;          // Background color
+
+float thirdCrossAngleOffset = 65.0f;  // Change this to adjust the rotation.
+
+std::vector<std::string> buttonSetFolders;
+int buttonSetIndex = 0;
+std::vector<std::string> toonSetFolders;
+int toonSetIndex = 0;
+
+
+// Forward declarations
 void pollAndUpdateGameController();
-
-void attachToGame();
-
-void setValuesFromSA2();
-void setValuesFromSADX();
-void setValuesFromHeroes();
-void setValuesFromMania();
-void setValuesFromGenerations();
-
-DWORD getProcessIdByName(const char* processName);
-
-std::vector<std::string> getSkinFolders(const std::string &directory);
-
-std::vector<std::string> skinFolders;
-
-std::string messageToDisplay = "Init";
-std::string messageToDisplay2 = "Init";
-
-std::string fontPath = "";
+std::vector<std::string> getButtonSetFolders(const std::string& directory);
+std::vector<std::string> getToonSetFolders(const std::string& directory);
+void loadImages();
 void reloadImages();
 void UpdateAnimation();
-void loadImages();
-
 void cleanUp();
-
-static void updateText(int JoyXCoord, int JoyYCoord)
-{
-    std::string cordX = std::to_string(JoyXCoord);
-    std::string cordY = std::to_string(JoyYCoord);
-    messageToDisplay = ("X: " + cordX);
-    messageToDisplay2 = ("Y: " + cordY);
-}
 void saveIndex();
-void saveConfig();
+void loadSettings();
+void saveSettings();
+void setIcon();
 
-//https://caedesnotes.wordpress.com/2015/04/13/how-to-integrate-your-sdl2-window-icon-or-any-image-into-your-executable/
-void setIcon()
+static void updateText(float JoyXCoord, float JoyYCoord)
 {
-    #include "icon.c"
+    char bufferX[32], bufferY[32];
+    snprintf(bufferX, sizeof(bufferX), "%.2f", JoyXCoord);
+    snprintf(bufferY, sizeof(bufferY), "%.2f", JoyYCoord);
+    messageToDisplay = "X:  " + std::string(bufferX);
+    messageToDisplay2 = "    Y:   " + std::string(bufferY);
+}
 
-    Uint32 rmask, gmask, bmask, amask;
-    rmask = 0x000000ff;
-    gmask = 0x0000ff00;
-    bmask = 0x00ff0000;
-    amask = (imgIcon.bytes_per_pixel == 3) ? 0 : 0xff000000;
+// --- Drawing helper functions ---
+void DrawFilledCircle(SDL_Renderer* renderer, int centerX, int centerY, int radius, SDL_Color color)
+{
+    SDL_SetRenderDrawColor(renderer, color.r, color.g, color.b, color.a);
+    for (int dy = -radius; dy <= radius; dy++)
+    {
+        int dx = (int)std::sqrt((float)(radius * radius - dy * dy));
+        SDL_RenderDrawLine(renderer, centerX - dx, centerY + dy, centerX + dx, centerY + dy);
+    }
+}
 
-    SDL_Surface* icon = SDL_CreateRGBSurfaceFrom(
-        (void*)imgIcon.pixel_data,
-        imgIcon.width,
-        imgIcon.height,
-        imgIcon.bytes_per_pixel*8,
-        imgIcon.bytes_per_pixel*imgIcon.width,
-        rmask,
-        gmask,
-        bmask,
-        amask);
-
-    SDL_SetWindowIcon(sdlWindow, icon);
-
-    SDL_FreeSurface(icon);
+void DrawThickLine(SDL_Renderer* renderer, int x1, int y1, int x2, int y2, int thickness)
+{
+    if (thickness <= 1)
+    {
+        SDL_RenderDrawLine(renderer, x1, y1, x2, y2);
+    }
+    else
+    {
+        float angle = std::atan2((float)(y2 - y1), (float)(x2 - x1));
+        int half = thickness / 2;
+        // Draw multiple lines offset perpendicular to the line's angle
+        for (int offset = -half; offset <= half; offset++)
+        {
+            int ox = (int)(-offset * std::sin(angle));
+            int oy = (int)(offset * std::cos(angle));
+            SDL_RenderDrawLine(renderer, x1 + ox, y1 + oy, x2 + ox, y2 + oy);
+        }
+    }
 }
 
 
-
-int main(int argc, char* argv[])
+// Fills a convex quadrilateral defined by 4 SDL_Points.
+void DrawFilledQuad(SDL_Renderer* renderer, const SDL_Point pts[4], SDL_Color color)
 {
-    argc;
-    argv;
-
-    HWND handle = GetConsoleWindow();
-    ShowWindow(handle, SW_HIDE);
-
-    SDL_SetHintWithPriority(SDL_HINT_GAMECONTROLLER_USE_BUTTON_LABELS, "0", SDL_HINT_OVERRIDE);
-    SDL_SetHintWithPriority(SDL_HINT_JOYSTICK_ALLOW_BACKGROUND_EVENTS, "1", SDL_HINT_OVERRIDE);
-
-    SDL_Init(SDL_INIT_VIDEO);
-    SDL_Init(SDL_INIT_GAMECONTROLLER);
-    TTF_Init();
-    IMG_Init(IMG_INIT_PNG);
-
-    sdlWindow = SDL_CreateWindow("Searching for game...", SDL_WINDOWPOS_CENTERED, SDL_WINDOWPOS_CENTERED, 210, 150, SDL_WINDOW_SHOWN);
-
-    // Find the renderer that uses d3d11.
-    for (int rendererIndex = 0; rendererIndex < 100; rendererIndex++)
-    {
-        sdlRenderer = SDL_CreateRenderer(sdlWindow, rendererIndex, SDL_RENDERER_ACCELERATED | SDL_RENDERER_PRESENTVSYNC);
-
-        if (sdlRenderer == nullptr) // We don't have d3d11, just use whatever is available and transparency won't work.
-        {
-            sdlRenderer = SDL_CreateRenderer(sdlWindow, -1, SDL_RENDERER_ACCELERATED | SDL_RENDERER_PRESENTVSYNC);
-            break;
+    SDL_SetRenderDrawColor(renderer, color.r, color.g, color.b, color.a);
+    // Find the vertical bounds of the polygon.
+    int minY = pts[0].y, maxY = pts[0].y;
+    for (int i = 1; i < 4; i++) {
+        minY = std::min(minY, pts[i].y);
+        maxY = std::max(maxY, pts[i].y);
+    }
+    // For each scanline, compute intersections with the polygon edges.
+    for (int y = minY; y <= maxY; y++) {
+        std::vector<float> intersections;
+        for (int i = 0; i < 4; i++) {
+            int j = (i + 1) % 4;
+            int y1 = pts[i].y;
+            int y2 = pts[j].y;
+            // Check if the scanline intersects the edge.
+            if ((y >= y1 && y <= y2) || (y >= y2 && y <= y1)) {
+                if (y1 == y2) {
+                    // Horizontal edge: take both endpoints.
+                    intersections.push_back((float)pts[i].x);
+                    intersections.push_back((float)pts[j].x);
+                }
+                else {
+                    float t = (float)(y - y1) / (float)(y2 - y1);
+                    float x = pts[i].x + t * (pts[j].x - pts[i].x);
+                    intersections.push_back(x);
+                }
+            }
         }
-
-        SDL_RendererInfo info;
-        SDL_GetRendererInfo(sdlRenderer, &info);
-
-        std::string name = info.name;
-        if (name == "direct3d11") // We NEED d3d11 for transparency to work in OBS capture.
-        {
-            break;
-        }
-        else
-        {
-            SDL_DestroyRenderer(sdlRenderer);
-            sdlRenderer = nullptr;
+        if (intersections.size() >= 2) {
+            std::sort(intersections.begin(), intersections.end());
+            int xStart = (int)ceil(intersections.front());
+            int xEnd = (int)floor(intersections.back());
+            SDL_RenderDrawLine(renderer, xStart, y, xEnd, y);
         }
     }
+}
 
-    // This is the texture that we render on.
-    SDL_Texture* textureTransparent = SDL_CreateTexture(sdlRenderer, SDL_PIXELFORMAT_RGBA8888, SDL_TEXTUREACCESS_TARGET, 210, 150);
+// Draws a thick line as a filled quadrilateral between (x1,y1) and (x2,y2)
+void DrawThickLineRect(SDL_Renderer* renderer, int x1, int y1, int x2, int y2, int thickness, SDL_Color color)
+{
+    // Compute the direction vector.
+    float dx = x2 - x1;
+    float dy = y2 - y1;
+    float len = std::sqrt(dx * dx + dy * dy);
+    if (len == 0)
+        return;
 
-    SDL_SetTextureBlendMode(textureTransparent, SDL_BLENDMODE_BLEND);
+    // Compute the normalized perpendicular vector.
+    float pdx = -dy / len;
+    float pdy = dx / len;
+    float halfThickness = thickness / 1.5f;
+
+    // Calculate the four corners of the thick line rectangle.
+    SDL_Point quad[4];
+    quad[0].x = (int)round(x1 + pdx * halfThickness);
+    quad[0].y = (int)round(y1 + pdy * halfThickness);
+    quad[1].x = (int)round(x2 + pdx * halfThickness);
+    quad[1].y = (int)round(y2 + pdy * halfThickness);
+    quad[2].x = (int)round(x2 - pdx * halfThickness);
+    quad[2].y = (int)round(y2 - pdy * halfThickness);
+    quad[3].x = (int)round(x1 - pdx * halfThickness);
+    quad[3].y = (int)round(y1 - pdy * halfThickness);
+
+    // Fill the quadrilateral.
+    DrawFilledQuad(renderer, quad, color);
+}
+// Draws an octagon outline (not filled) with a given center, outer radius, and line thickness.
+void DrawOctagon(SDL_Renderer* renderer, int centerX, int centerY, int outerRadius, int thickness, SDL_Color color)
+{
+    const int numSides = 8;
+    SDL_Point vertices[numSides];
+
+    // Compute the 8 vertices of a regular octagon.
+    for (int i = 0; i < numSides; i++) {
+        float angle = i * (2.0f * M_PI / numSides);
+        vertices[i].x = centerX + (int)round(outerRadius * cos(angle));
+        vertices[i].y = centerY + (int)round(outerRadius * sin(angle));
+    }
+
+    // Draw thick edges between each consecutive vertex.
+    for (int i = 0; i < numSides; i++) {
+        int j = (i + 1) % numSides;
+        DrawThickLineRect(renderer, vertices[i].x, vertices[i].y, vertices[j].x, vertices[j].y, thickness, color);
+    }
+
+    // Draw rounded joins at each vertex to smooth out gaps.
+    int joinRadius = thickness / 2; // adjust as needed
+    for (int i = 0; i < numSides; i++) {
+        DrawFilledCircle(renderer, vertices[i].x, vertices[i].y, joinRadius, color);
+    }
+}
+
+void DrawCircleOutline(SDL_Renderer* renderer, int centerX, int centerY, int radius, SDL_Color color)
+{
+    SDL_SetRenderDrawColor(renderer, color.r, color.g, color.b, color.a);
+    int x = radius, y = 0;
+    int decision = 1 - x;
+    while (y <= x)
+    {
+        SDL_RenderDrawPoint(renderer, centerX + x, centerY + y);
+        SDL_RenderDrawPoint(renderer, centerX + y, centerY + x);
+        SDL_RenderDrawPoint(renderer, centerX - x, centerY + y);
+        SDL_RenderDrawPoint(renderer, centerX - y, centerY + x);
+        SDL_RenderDrawPoint(renderer, centerX - x, centerY - y);
+        SDL_RenderDrawPoint(renderer, centerX - y, centerY - x);
+        SDL_RenderDrawPoint(renderer, centerX + x, centerY - y);
+        SDL_RenderDrawPoint(renderer, centerX + y, centerY - x);
+        y++;
+        if (decision <= 0)
+            decision += 2 * y + 1;
+        else
+        {
+            x--;
+            decision += 2 * (y - x) + 1;
+        }
+    }
+}
+
+void DrawRing(SDL_Renderer* renderer, int centerX, int centerY, int outerRadius, int thickness, SDL_Color fillColor, SDL_Color outlineColor)
+{
+    int innerRadius = outerRadius - thickness;
+    for (int dy = -outerRadius; dy <= outerRadius; dy++)
+    {
+        int dxOuter = (int)std::sqrt((float)(outerRadius * outerRadius - dy * dy));
+        int dxInner = 0;
+        if (std::abs(dy) < innerRadius)
+            dxInner = (int)std::sqrt((float)(innerRadius * innerRadius - dy * dy));
+        if (dxOuter > dxInner)
+        {
+            SDL_SetRenderDrawColor(renderer, fillColor.r, fillColor.g, fillColor.b, fillColor.a);
+            SDL_RenderDrawLine(renderer, centerX - dxOuter, centerY + dy, centerX - dxInner, centerY + dy);
+            SDL_RenderDrawLine(renderer, centerX + dxInner, centerY + dy, centerX + dxOuter, centerY + dy);
+        }
+    }
+    DrawCircleOutline(renderer, centerX, centerY, outerRadius, outlineColor);
+}
+
+
+// Helper: Draws one half of the crosshair line in a given direction,
+// clipping so that only the segment outside the outer ring is drawn.
+void DrawThirdCrosshairSegment(SDL_Renderer* renderer, int centerX, int centerY,
+    int crossLength, int outerRingRadius,
+    int thickness, SDL_Color color, float angle)
+{
+    // Compute unit vector for this angle.
+    float cosA = cos(angle);
+    float sinA = sin(angle);
+
+    // If the crossLength doesn't exceed the outer ring, nothing to draw.
+    if (crossLength <= outerRingRadius)
+        return;
+
+    // Compute the intersection point on the circle (outer ring boundary).
+    int ix = centerX + (int)round(outerRingRadius * cosA);
+    int iy = centerY + (int)round(outerRingRadius * sinA);
+
+    // Compute the endpoint of the crosshair in this direction.
+    int ex = centerX + (int)round(crossLength * cosA);
+    int ey = centerY + (int)round(crossLength * sinA);
+
+    // Draw a thick line from the intersection to the endpoint.
+    DrawThickLineRect(renderer, ix, iy, ex, ey, thickness, color);
+}
+
+// Draws the third crosshair ("X" pattern) over the outer ring.
+// It draws the portions of two mirrored rays (at +angleOffset and -angleOffset)
+// that lie within the annulus defined by ringOuterRadius (outer edge)
+// and ringOuterRadius - ringThickness (inner edge).
+// The crosshair length is fixed to ringOuterRadius.
+void DrawThirdCrosshairAnnulusMirrored(SDL_Renderer* renderer, int centerX, int centerY,
+    int ringOuterRadius, int ringThickness,
+    int thickness, SDL_Color color,
+    float angleOffsetDegrees)
+{
+    // Convert the provided angle to radians.
+    float theta = angleOffsetDegrees * (M_PI / 180.0f);
+    // Define the inner and outer radii of the annulus.
+    float innerRadius = ringOuterRadius - ringThickness;
+    float outerRadius = ringOuterRadius; // crossLength equals the outer ring radius.
+
+    // Helper lambda: Draw the ray segment for a given angle.
+    auto drawRaySegment = [&](float angle) {
+        // Compute the starting point (at the inner boundary) and the end point (at the outer boundary)
+        int x_start = centerX + (int)round(innerRadius * cos(angle));
+        int y_start = centerY + (int)round(innerRadius * sin(angle));
+        int x_end = centerX + (int)round(outerRadius * cos(angle));
+        int y_end = centerY + (int)round(outerRadius * sin(angle));
+        DrawThickLineRect(renderer, x_start, y_start, x_end, y_end, thickness, color);
+
+        // Also draw the ray in the opposite direction (mirroring through the center).
+        x_start = centerX - (int)round(innerRadius * cos(angle));
+        y_start = centerY - (int)round(innerRadius * sin(angle));
+        x_end = centerX - (int)round(outerRadius * cos(angle));
+        y_end = centerY - (int)round(outerRadius * sin(angle));
+        DrawThickLineRect(renderer, x_start, y_start, x_end, y_end, thickness, color);
+    };
+
+    // Draw the two mirrored rays: one at +theta and one at -theta.
+    drawRaySegment(theta);
+    drawRaySegment(-theta);
+}
+SDL_Texture* createGlowTexture(int baseRadius, int extraRadius, SDL_Color baseColor) {
+    int glowDiameter = (baseRadius + extraRadius) * 2;
+    SDL_Texture* glowTex = SDL_CreateTexture(sdlRenderer, SDL_PIXELFORMAT_RGBA8888, SDL_TEXTUREACCESS_TARGET, glowDiameter, glowDiameter);
+    SDL_SetTextureBlendMode(glowTex, SDL_BLENDMODE_BLEND);
+
+    // Render to the glow texture
+    SDL_SetRenderTarget(sdlRenderer, glowTex);
     SDL_SetRenderDrawBlendMode(sdlRenderer, SDL_BLENDMODE_BLEND);
+    SDL_SetRenderDrawColor(sdlRenderer, 0, 0, 0, 0);
+    SDL_RenderClear(sdlRenderer);
 
-    setIcon();
-
-   
-    // Disable the minimize and maximize buttons.
-    SDL_SysWMinfo wmInfo;
-    SDL_VERSION(&wmInfo.version);
-    SDL_GetWindowWMInfo(sdlWindow, &wmInfo);
-    HWND hwnd = wmInfo.info.win.window;
-    SetWindowLong(hwnd, GWL_STYLE, GetWindowLong(hwnd, GWL_STYLE) & ~WS_MINIMIZEBOX);
-    SetWindowLong(hwnd, GWL_STYLE, GetWindowLong(hwnd, GWL_STYLE) & ~WS_MAXIMIZEBOX);
-
-    char bgR = 0;
-    char bgG = 0;
-    char bgB = 0;
-
-    std::vector<std::string> bgColorLines = readFileLines("BackgroundColor.ini");
-    if (bgColorLines.size() >= 1)
-    {
-        std::vector<std::string> bgColors = split(bgColorLines[0], ',');
-        if (bgColors.size() == 3)
-        {
-            bgR = (char)std::stoi(bgColors[0]);
-            bgG = (char)std::stoi(bgColors[1]);
-            bgB = (char)std::stoi(bgColors[2]);
+    // Create a temporary surface for the radial gradient
+    SDL_Surface* tempSurface = SDL_CreateRGBSurfaceWithFormat(0, glowDiameter, glowDiameter, 32, SDL_PIXELFORMAT_RGBA32);
+    Uint32* pixels = (Uint32*)tempSurface->pixels;
+    int cx = glowDiameter / 2;
+    int cy = glowDiameter / 2;
+    for (int y = 0; y < glowDiameter; y++) {
+        for (int x = 0; x < glowDiameter; x++) {
+            int dx = x - cx;
+            int dy = y - cy;
+            float dist = std::sqrt(dx * dx + dy * dy);
+            Uint8 alpha = (dist <= baseRadius) ? 255 :
+                (dist < baseRadius + extraRadius) ? (Uint8)(255 - 255 * (dist - baseRadius) / extraRadius) : 0;
+            Uint32 pixel = SDL_MapRGBA(tempSurface->format, baseColor.r, baseColor.g, baseColor.b, alpha);
+            pixels[y * glowDiameter + x] = pixel;
         }
     }
-
-    char stickR = 0;
-    char stickG = 0;
-    char stickB = 0;
-
-    std::vector<std::string> stickColorLines = readFileLines("StickColor.ini");
-    if (stickColorLines.size() >= 1)
-    {
-        std::vector<std::string> stickColors = split(stickColorLines[0], ',');
-        if (stickColors.size() == 3)
-        {
-            stickR = (char)std::stoi(stickColors[0]);
-            stickG = (char)std::stoi(stickColors[1]);
-            stickB = (char)std::stoi(stickColors[2]);
-        }
-    }
-   
-
-    bool thickLine = true;
-    std::vector<std::string> lineWidthLines = readFileLines("StickLineWidth.ini");
-    if (lineWidthLines.size() == 2)
-    {
-        thickLine = (bool)std::stoi(lineWidthLines[1]);
-    }
-
-    folderIndex = 0;
-    std::vector<std::string> indexLines = readFileLines("Index.ini");
-    if (indexLines.size() == 1)
-    {
-        folderIndex = std::stoi(indexLines[0]);
-
-    }
-
-    char Switch1 = 0;
-    char Switch2 = 0;
-    char Switch3 = 0;
-    char Switch4 = 0;
-    char Switch5 = 0;
-
-    std::vector<std::string> configLines = readFileLines("MenuConfig.ini");
-    if (configLines.size() >= 1)
-    {
-        std::vector<std::string> switchValues = split(configLines[0], ',');
-        if (switchValues.size() == 5)
-        {
-            Switch1 = (char)std::stoi(switchValues[0]);
-            Switch2 = (char)std::stoi(switchValues[1]);
-            Switch3 = (char)std::stoi(switchValues[2]);
-            Switch4 = (char)std::stoi(switchValues[3]);
-            Switch5 = (char)std::stoi(switchValues[4]);
-            if (std::to_string(Switch1) == "1") {
-                showCoordinatesSwitch = 1;
-
-            }
-            else { showCoordinatesSwitch = 0; }
-            if (std::to_string(Switch2) == "1") {
-                showMSpeedSwitch = 1;
-            }
-            else { showMSpeedSwitch = 0; }
-            if (std::to_string(Switch3) == "1") {
-                toonSwitch = 1;
-            }
-            else { toonSwitch = 0; }
-            if (std::to_string(Switch4) == "1") {
-                stickSensitivitySwitch = 1;
-            }
-            else { stickSensitivitySwitch = 0; }
-            if (std::to_string(Switch5) == "1") {
-                dPadSwitch = 1;
-            }
-            else { dPadSwitch = 0; }
-        }
-
-    }
-    skinFolders = getSkinFolders("./");
-
-    loadImages();
-    bool running = true;
-    while (running)
-    {
-
-        SDL_Event e;
-        while (SDL_PollEvent(&e))
-        {
-            timerValue = SDL_GetTicks() / 100;
-            switch (e.type)
-            {
-            case SDL_QUIT:
-            {
-                running = false;
-                break;
-            }
-
-
-            case SDL_KEYDOWN:
-            {
-                SDL_KeyboardEvent* keyEv = (SDL_KeyboardEvent*)&e;
-                if (keyEv->keysym.sym == SDLK_LEFT)
-                {
-                    folderIndex--;
-                }
-                else if (keyEv->keysym.sym == SDLK_RIGHT)
-                {
-                    folderIndex++;
-                }
-
-                if (folderIndex >= (int)skinFolders.size())
-                {
-                    folderIndex = 0;
-                }
-                else if (folderIndex < 0)
-                {
-                    folderIndex = ((int)skinFolders.size()) - 1;
-                }
-                if (keyEv->keysym.sym == SDLK_F1)
-                {
-                    showCoordinatesSwitch = !showCoordinatesSwitch;
-                }
-                if (keyEv->keysym.sym == SDLK_F2)
-                {
-                    toonSwitch = !toonSwitch;
-                }
-                if (keyEv->keysym.sym == SDLK_F3)
-                {
-                    showMSpeedSwitch = !showMSpeedSwitch;
-                }
-                if (keyEv->keysym.sym == SDLK_F4)
-                {
-                    stickSensitivitySwitch = !stickSensitivitySwitch;
-                }
-                if (keyEv->keysym.sym == SDLK_F5)
-                {
-                    dPadSwitch = !dPadSwitch;
-                }
-                if (keyEv->keysym.sym == SDLK_h)
-                {
-                    showHelpSwitch = !showHelpSwitch;
-                }
-                break;
-            }
-            default:
-                break;
-            }
-        }
-        A = 0;
-        B = 0;
-        X = 0;
-        Y = 0;
-        L = 0;
-        R = 0;
-        S = 0;
-        JoyX = 0;
-        JoyY = 0;
-
-        switch (gameId)
-        {
-        case 0: setValuesFromSA2();         break;
-        case 1: setValuesFromSADX();        break;
-        case 2: setValuesFromHeroes();      break;
-        case 3: setValuesFromMania();       break;
-        case 4: setValuesFromGenerations(); break;
-        default: attachToGame();            break;
-        }
-
-        if (gameId == -1 && !controllerIsConnected)
-        {
-            A = 1;
-            B = 1;
-            X = 1;
-            Y = 1;
-            L = 1;
-            R = 1;
-            S = 1;
-            LT = 1;
-            RT = 1;
-        }
-
-        SDL_SetRenderTarget(sdlRenderer, textureTransparent);
-        SDL_SetRenderDrawColor(sdlRenderer, bgR, bgG, bgB, 0);
-        SDL_RenderClear(sdlRenderer);
-
-        if (showMSpeedSwitch == true || toonSwitch == true) { UpdateAnimation(); }
-   
- 
-        if (showCoordinatesSwitch == true) {
-            SDL_RenderCopy(sdlRenderer, texMessage, nullptr, &recMessage);
-            SDL_RenderCopy(sdlRenderer, texMessage2, nullptr, &recMessage2);
-        }
-        if (showMSpeedSwitch == true) {
-            SDL_RenderCopy(sdlRenderer, imgMSM, nullptr, &recMSM);
-            if (stickSensitivitySwitch == true) { SDL_RenderCopy(sdlRenderer, imgSS, nullptr, &recSS); }
-        }
-        SDL_FreeSurface(surfaceMessage);
-        SDL_FreeSurface(surfaceMessage2);
-
-        SDL_RenderCopy(sdlRenderer, imgBase, nullptr, &recBase);
-        if (toonSwitch != 0) {
-            if (showMSpeedSwitch == false) {
-                SDL_RenderCopy(sdlRenderer, imgBaseToon, nullptr, &recBase);
-            }
-            else if (mSpeed == false) {
-                SDL_RenderCopy(sdlRenderer, imgBaseToon, nullptr, &recBase);
-            }
-        }
-        if (showMSpeedSwitch == true) {
-            if (mSpeed == true) {
-                SDL_RenderCopy(sdlRenderer, imgBaseM, nullptr, &recBase);
-                if (toonSwitch == true) {
-                    SDL_RenderCopy(sdlRenderer, imgBaseToonM, nullptr, &recBase);
-                }
-            }
-        }
-        if (showCoordinatesSwitch == true) {
-            updateText(JoyX, JoyY);
-        }
-        int drawX = 144 + ((64*JoyX)/128);
-        int drawY = 72  - ((64*JoyY)/128);
-        SDL_Rect recStickSmall = {drawX - 4, drawY - 4, 8, 8};
-
-        float radius = fminf(sqrtf((float)((JoyX*JoyX) + (JoyY*JoyY))), 128.0f);
-        float angle  = atan2f((float)JoyY, (float)JoyX);
-        int capX = (int)(radius*cosf(angle));
-        int capY = (int)(radius*sinf(angle));
-        int drawCapX = 144 + ((64*capX)/128);
-        int drawCapY = 72  - ((64*capY)/128);
-
-        SDL_Rect recStick = {drawCapX - 4, drawCapY - 4, 8, 8};
-
-        SDL_SetRenderDrawColor(sdlRenderer, stickR, stickG, stickB, 255);
-        SDL_RenderDrawLine(sdlRenderer, 144 - 0, 72 - 0, drawCapX - 0, drawCapY - 0);
-        if (thickLine)
-        {
-            SDL_RenderDrawLine(sdlRenderer, 144 - 1, 72 - 0, drawCapX - 1, drawCapY - 0);
-            SDL_RenderDrawLine(sdlRenderer, 144 - 0, 72 - 1, drawCapX - 0, drawCapY - 1);
-            SDL_RenderDrawLine(sdlRenderer, 144 - 1, 72 - 1, drawCapX - 1, drawCapY - 1);
-        }
-        SDL_SetRenderDrawColor(sdlRenderer, bgR, bgG, bgB, 0); 
-        SDL_RenderCopy(sdlRenderer, imgStick, nullptr, &recStick);
-        if (mSpeed != 0 && showMSpeedSwitch !=0) { SDL_RenderCopy(sdlRenderer, imgStickSmallM, nullptr, &recStick); }
-        if (A != 0) { SDL_RenderCopy(sdlRenderer, imgA, nullptr, &recA); }
-        if (B != 0) { SDL_RenderCopy(sdlRenderer, imgB, nullptr, &recB); }
-        if (X != 0) { SDL_RenderCopy(sdlRenderer, imgX, nullptr, &recX); }
-        if (Y != 0) { SDL_RenderCopy(sdlRenderer, imgY, nullptr, &recY); }
-        if (L != 0) { SDL_RenderCopy(sdlRenderer, imgL, nullptr, &recL); }
-        if (R != 0) { SDL_RenderCopy(sdlRenderer, imgR, nullptr, &recR); }
-        if (LT != 0) { SDL_RenderCopy(sdlRenderer, imgLT, nullptr, &recLT); }
-        if (RT != 0) { SDL_RenderCopy(sdlRenderer, imgRT, nullptr, &recRT); }
-        if (pUp != 0) { SDL_RenderCopy(sdlRenderer, imgUp, nullptr, &recUp); }
-        if (pDown != 0) { SDL_RenderCopy(sdlRenderer, imgDown, nullptr, &recDown); }
-        if (pLeft != 0) { SDL_RenderCopy(sdlRenderer, imgLeft, nullptr, &recLeft); }
-        if (pRight != 0) { SDL_RenderCopy(sdlRenderer, imgRight, nullptr, &recRight); }
-        if (S != 0) { SDL_RenderCopy(sdlRenderer, imgS, nullptr, &recS); }
-
-        if (timerValue <= 10) {
-            SDL_RenderCopy(sdlRenderer, imgHelp1, nullptr, &recFull);
-        }
-
-        if (showHelpSwitch == true) {
-            SDL_RenderCopy(sdlRenderer, imgHelp2, nullptr, &recFull);
-        }
-
-        SDL_SetRenderTarget(sdlRenderer, nullptr);
-        SDL_RenderClear(sdlRenderer);
-        SDL_RenderCopy(sdlRenderer, textureTransparent, nullptr, nullptr);
-        SDL_RenderPresent(sdlRenderer);
-
-        SDL_Delay(16);
-        if (folderIndexLast != folderIndex) { reloadImages(); }
-
-    }
-
-    saveIndex();
-    saveConfig();
-    cleanUp();
-    SDL_DestroyRenderer(sdlRenderer);
-    SDL_DestroyWindow(sdlWindow);
-    IMG_Quit();
-    TTF_Quit();
-    SDL_Quit();
-
-    return 0;
+    SDL_Texture* finalGlowTex = SDL_CreateTextureFromSurface(sdlRenderer, tempSurface);
+    SDL_FreeSurface(tempSurface);
+    SDL_SetRenderTarget(sdlRenderer, nullptr);
+    return finalGlowTex;
 }
+SDL_Texture* createRingTexture(int centerX, int centerY, int outerRadius, int thickness, SDL_Color fillColor, SDL_Color outlineColor) {
+    // Calculate texture dimensions; we add a little extra padding.
+    int texSize = (outerRadius + thickness) * 2;
+    SDL_Texture* tex = SDL_CreateTexture(sdlRenderer, SDL_PIXELFORMAT_RGBA8888, SDL_TEXTUREACCESS_TARGET, texSize, texSize);
+    SDL_SetTextureBlendMode(tex, SDL_BLENDMODE_BLEND);
 
-SDL_GameController* controller = nullptr;
+    // Set the texture as the current render target.
+    SDL_SetRenderTarget(sdlRenderer, tex);
+    SDL_SetRenderDrawColor(sdlRenderer, 0, 0, 0, 0);
+    SDL_RenderClear(sdlRenderer);
 
-static void speedCheck(float cordX, float cordY)
-{
-    mSpeed = false;
-    int crdX = (int)(cordX * 128);
-    int crdY = (int)(cordY * 128);
-    // Check if 100 Stick Sensitivity option is enabled and adjusts
-    if (stickSensitivitySwitch == true) {
-        // Checks for M-Speed to change the color of the reticle
-        //100 Stick Sense
-        if ((cordY * 128) >= 35 && (cordY * 128) <= 36.7 && crdX >= -35 && crdX <= 35) { mSpeed = true; } // Handles Northern Slice
-        if ((cordY * 128) <= -35 && (cordY * 128) >= -36.7 && crdX >= -35 && crdX <= 35) { mSpeed = true; } // Handles Southern Slice
-        if ((cordX * 128) >= 36 && (cordX * 128) <= 37.7 && crdY >= -35 && crdY <= 35) { mSpeed = true; } // Handles Western Slice
-        if ((cordX * 128) <= -36 && (cordX * 128) >= -37.7 && crdY >= -35 && crdY <= 35) { mSpeed = true; } // Handles Eastern Slice
+    // Draw the ring centered in the texture.
+    // We shift the center to (texSize/2, texSize/2)
+    DrawRing(sdlRenderer, texSize / 2, texSize / 2, outerRadius, thickness, fillColor, outlineColor);
+
+    // Reset render target to the default.
+    SDL_SetRenderTarget(sdlRenderer, nullptr);
+    return tex;
+}
+SDL_Texture* createOctagonTexture(int centerX, int centerY, int outerRadius, int thickness, SDL_Color color) {
+    // In your older code you subtracted 4 from the outer radius and thickness.
+    int adjustedRadius = outerRadius;  // Pass already adjusted values (e.g. ringOuterRadius - 4)
+    int adjustedThickness = thickness; // Similarly, pass thickness already adjusted (e.g. ringThickness - 4)
+    // Determine a texture size that will fully contain the octagon.
+    int texSize = (adjustedRadius + adjustedThickness + 4) * 2;
+    SDL_Texture* tex = SDL_CreateTexture(sdlRenderer, SDL_PIXELFORMAT_RGBA8888,
+        SDL_TEXTUREACCESS_TARGET, texSize, texSize);
+    SDL_SetTextureBlendMode(tex, SDL_BLENDMODE_BLEND);
+
+    // Set the texture as the current render target and clear it.
+    SDL_SetRenderTarget(sdlRenderer, tex);
+    SDL_SetRenderDrawColor(sdlRenderer, 0, 0, 0, 0);
+    SDL_RenderClear(sdlRenderer);
+
+    // Draw the octagon centered in the texture.
+    DrawOctagon(sdlRenderer, texSize / 2, texSize / 2, adjustedRadius, adjustedThickness, color);
+
+    // Reset the render target back to the default.
+    SDL_SetRenderTarget(sdlRenderer, nullptr);
+    return tex;
+}
+void updateRingTextures() {
+    // Destroy any existing textures.
+    if (ringTexture != nullptr) {
+        SDL_DestroyTexture(ringTexture);
+        ringTexture = nullptr;
     }
-    else {
-        //50 Stick Sense
-        if ((cordY * 128) >= 37 && (cordY * 128) <= 41 && crdX >= -37 && crdX <= 37) { mSpeed = true; } // Handles Northern Slice
-        if ((cordY * 128) <= -38 && (cordY * 128) >= -41 && crdX >= -37 && crdX <= 37) { mSpeed = true; } // Handles Southern Slice
-        if ((cordX * 128) >= 37 && (cordX * 128) <= 41 && crdY >= -36 && crdY <= 35) { mSpeed = true; } // Handles Eastern Slice
-        if ((cordX * 128) <= -37 && (cordX * 128) >= -41 && crdY >= -37 && crdY <= 36) { mSpeed = true; } // Handles Western Slice
-        if (crdX == 36 && crdY == 36) { mSpeed = true; }  // Up-Right case 
-        if (crdX == -36 && crdY == 36) { mSpeed = true; } // Up-Left case      
+    if (ringLayerTexture != nullptr) {
+        SDL_DestroyTexture(ringLayerTexture);
+        ringLayerTexture = nullptr;
+    }
+    if (ringInnerLayerTexture != nullptr) {
+        SDL_DestroyTexture(ringInnerLayerTexture);
+        ringInnerLayerTexture = nullptr;
+    }
+
+    int centerX = 288;
+    int centerY = 144;
+
+    if (shapeIndex == 0 || shapeIndex == 1) {
+        // Circular case: use your existing createRingTexture function.
+        ringTexture = createRingTexture(centerX, centerY, ringOuterRadius, ringThickness, ringColor, ringOutlineColor);
+        ringLayerTexture = createRingTexture(centerX, centerY, ringOuterRadius, ringThickness, ringColor, ringOutlineColor);
+        ringInnerLayerTexture = createRingTexture(centerX, centerY, secondRingOuterRadius, secondRingThickness, secondRingColor, secondRingOutlineColor);
+    }
+    else if (shapeIndex == 2) {
+        // Octagon case: adjust parameters according to your older source.
+        ringTexture = createOctagonTexture(centerX, centerY, ringOuterRadius - 4, ringThickness - 4, ringColor);
+        ringLayerTexture = createOctagonTexture(centerX, centerY, ringOuterRadius - 4, ringThickness - 4, ringColor);
+        ringInnerLayerTexture = createOctagonTexture(centerX, centerY, secondRingOuterRadius - 4, secondRingThickness - 1, secondRingColor);
     }
 }
 
-void pollAndUpdateGameController()
-{
-    char a = 0;
-    char b = 0;
-    char y = 0;
-    char x = 0;
-    char s = 0;
-    char r = 0;
-    char l = 0;
-
-    float joyX = 0.0f;
-    float joyY = 0.0f;
-
-    SDL_GameControllerUpdate();
-
-    if (SDL_GameControllerGetAttached(controller) == SDL_FALSE)
-    {
-        controllerIsConnected = false;
-
-        int numJoysticks = SDL_NumJoysticks();
-
-        for (int i = 0; i < numJoysticks; i++)
-        {
-            if (SDL_IsGameController(i) != SDL_FALSE)
-            {
-                controller = SDL_GameControllerOpen(i);
-                if (SDL_GameControllerGetAttached(controller) != SDL_FALSE)
-                {
-                    break;
-                }
-            }
-        }
-    }
-    else
-    {
-        controllerIsConnected = true;
-
-        a = SDL_GameControllerGetButton(controller, SDL_CONTROLLER_BUTTON_A);
-        b = SDL_GameControllerGetButton(controller, SDL_CONTROLLER_BUTTON_B);
-        y = SDL_GameControllerGetButton(controller, SDL_CONTROLLER_BUTTON_Y);
-        x = SDL_GameControllerGetButton(controller, SDL_CONTROLLER_BUTTON_X);
-        s = SDL_GameControllerGetButton(controller, SDL_CONTROLLER_BUTTON_START);
-        r = SDL_GameControllerGetButton(controller, SDL_CONTROLLER_BUTTON_RIGHTSHOULDER);
-        l = SDL_GameControllerGetButton(controller, SDL_CONTROLLER_BUTTON_LEFTSHOULDER);
-        char du = SDL_GameControllerGetButton(controller, SDL_CONTROLLER_BUTTON_DPAD_UP);
-        char dd = SDL_GameControllerGetButton(controller, SDL_CONTROLLER_BUTTON_DPAD_DOWN);
-        char dl = SDL_GameControllerGetButton(controller, SDL_CONTROLLER_BUTTON_DPAD_LEFT);
-        char dr = SDL_GameControllerGetButton(controller, SDL_CONTROLLER_BUTTON_DPAD_RIGHT);
-
-        int leftX = (int)SDL_GameControllerGetAxis(controller, SDL_CONTROLLER_AXIS_LEFTX);
-        int leftY = (int)SDL_GameControllerGetAxis(controller, SDL_CONTROLLER_AXIS_LEFTY);
-        int triggerL = (int)SDL_GameControllerGetAxis(controller, SDL_CONTROLLER_AXIS_TRIGGERLEFT);
-        int triggerR = (int)SDL_GameControllerGetAxis(controller, SDL_CONTROLLER_AXIS_TRIGGERRIGHT);
-        // Positive range is from 0 to 32767. Let's make it 32768.
-        if (leftX > 0) { leftX += 1; }
-        if (leftY > 0) { leftY += 1; }
-        if (triggerL > 0) { triggerL += 1; }
-        if (triggerR > 0) { triggerR += 1; }
-
-        joyX = leftX / 32768.0f;
-        joyY = -leftY / 32768.0f;
-        float trigL = triggerL / 32768.0f;
-        float trigR = triggerR / 32768.0f;
-
-        if (trigL > 0.5f)
-        {
-            tlFlag = 1;
-        }
-        if (trigR > 0.5f)
-        {
-            trFlag = 1;
-        }
-
-        if (dr != 0)
-        {
-            pRight = 1;
-        }
-        else { pRight = 0; }
-        if (dl != 0)
-        {
-            pLeft = 1;
-        }
-        else { pLeft = 0; }
-        if (du != 0)
-        {
-            pUp = 1;
-        }
-        else { pUp = 0; }
-
-        if (dd != 0)
-        {
-            pDown = 1;
-        }
-        else { pDown = 0; }
-
-
-        if (dPadSwitch == true)
-        {
-            if (dr != 0)
-            {
-                joyX = 1.0f;
-            }
-            else if (dl != 0)
-            {
-                joyX = -1.0f;
-            }
-
-            if (du != 0)
-            {
-                joyY = 1.0f;
-            }
-            else if (dd != 0)
-            {
-                joyY = -1.0f;
-            }
-        } 
-    }
-
-    A = a;
-    B = b;
-    Y = y;
-    X = x;
-    S = s;
-    R = r;
-    L = l;
-    LT = tlFlag;
-    RT = trFlag;
-    trFlag = 0;
-    tlFlag = 0;
-
-    JoyX = (int)(joyX * 127);
-    JoyY = (int)(joyY * 127);
-
-    mSpeed = false;
-    if (showMSpeedSwitch) { speedCheck(joyX, joyY); }
-}
-
-int nextProcessCheck = 400;
-
-void attachToGame()
-{
-    pollAndUpdateGameController();
-
-    if (controllerIsConnected)
-    {
-        SDL_SetWindowTitle(sdlWindow, "Controller Input");
-    }
-    else
-    {
-        SDL_SetWindowTitle(sdlWindow, "Searching for game...");
-    }
-
-    nextProcessCheck--;
-
-    if (nextProcessCheck > 0)
-    {
-        return;
-    }
-    nextProcessCheck = 0;
-
-    if (processHandle != NULL)
-    {
-        CloseHandle(processHandle);
-        processHandle = NULL;
-    }
-
-    gameId = 2;
-
-    DWORD pid = 0;
-
-    pid = getProcessIdByName("sonic2app.exe");
-    if (pid != 0)
-    {
-        gameId = 0;
-    }
-    else
-    {
-        pid = getProcessIdByName("sonic.exe");
-        if (pid != 0)
-        {
-            gameId = 1;
-        }
-        else
-        {
-            pid = getProcessIdByName("Sonic Adventure DX.exe");
-            if (pid != 0)
-            {
-                gameId = 1;
-            }
-            else
-            {
-                pid = getProcessIdByName("Tsonic_win.exe");
-                if (pid != 0)
-                {
-                    gameId = 2;
-                }
-                else
-                {
-                    // Mania and Generations don't seem to work anymore, disabling for now.
-                    //pid = getProcessIdByName("SonicMania.exe");
-                    //if (pid != 0)
-                    //{
-                    //    gameId = 3;
-                    //}
-                    //else
-                    //{
-                    //    pid = getProcessIdByName("SonicGenerations.exe");
-                    //    if (pid != 0)
-                    //    {
-                    //        gameId = 4;
-                    //    }
-                    //}
-                }
-            }
-        }
-    }
-
-    if (gameId != -1)
-    {
-        processHandle = OpenProcess(PROCESS_VM_READ, false, pid);
-
-        if (processHandle == NULL)
-        {
-            gameId = -1;
-        }
-    }
-
-    switch (gameId)
-    {
-        case 0: SDL_SetWindowTitle(sdlWindow, "SA2 Input"        ); break;
-        case 1: SDL_SetWindowTitle(sdlWindow, "SADX Input"       ); break;
-        case 2: SDL_SetWindowTitle(sdlWindow, "Heroes Input"     ); break;
-        case 3: SDL_SetWindowTitle(sdlWindow, "Mania Input"      ); break;
-        case 4: SDL_SetWindowTitle(sdlWindow, "Generations Input"); break;
-        default: break;
-    }
-}
-
-void setValuesFromSA2()
-{
-    SIZE_T bytesRead = 0;
-    char buffer[12];
-    if (ReadProcessMemory(processHandle, (LPCVOID)0x01A52C4C, buffer, 12, &bytesRead) == false || bytesRead != 12)
-    {
-        gameId = -1;
-        CloseHandle(processHandle);
-        processHandle = NULL;
-        return;
-    }
-
-    int buttons = 0;
-    memcpy(&buttons, &buffer[0], 4);
-
-    memcpy(&JoyX, &buffer[4], 4);
-
-    memcpy(&JoyY, &buffer[8], 4);
-
-    A = buttons & 256;
-    B = buttons & 512;
-    Y = buttons & 2048;
-    X = buttons & 1024;
-    S = buttons & 4096;
-    R = buttons & 32;
-    L = buttons & 64;
-
-    //D-Pad
-    int up    = buttons & 8;
-    int down  = buttons & 4;
-    int left  = buttons & 1;
-    int right = buttons & 2;
-
-    if (right != 0)
-    {
-        JoyX = 127;
-    }
-    else if (left != 0)
-    {
-        JoyX = -128;
-    }
-
-    if (up != 0)
-    {
-        JoyY = 127;
-    }
-    else if (down != 0)
-    {
-        JoyY = -128;
-    }
-}
-
-void setValuesFromSADX()
-{
-    SIZE_T bytesRead = 0;
-    char buffer[20];
-    if (ReadProcessMemory(processHandle, (LPCVOID)0x03B0E80C, buffer, 20, &bytesRead) == false || bytesRead != 20)
-    {
-        CloseHandle(processHandle);
-        processHandle = NULL;
-        gameId = -1;
-        return;
-    }
-
-    int buttons = 0;
-    memcpy(&buttons, &buffer[16], 4);
-
-    short joyX = 0;
-    memcpy(&joyX, &buffer[0], 2);
-    JoyX = joyX;
-
-    short joyY = 0;
-    memcpy(&joyY, &buffer[2], 2);
-    JoyY = -joyY;
-
-    short camX = 0;
-    memcpy(&camX, &buffer[4], 2);
-
-    A = buttons & 4;
-    B = buttons & 2;
-    Y = buttons & 512;
-    X = buttons & 1024;
-    S = buttons & 8;
-    R = buttons & 65536;
-    L = buttons & 131072;
-
-    if (camX < 0)
-    {
-        L = 1;
-    }
-    else if (camX > 0)
-    {
-        R = 1;
-    }
-
-    //D-Pad
-    int up    = buttons & 16;
-    int down  = buttons & 32;
-    int left  = buttons & 64;
-    int right = buttons & 128;
-
-    if (right != 0)
-    {
-        JoyX = 127;
-    }
-    else if (left != 0)
-    {
-        JoyX = -128;
-    }
-
-    if (up != 0)
-    {
-        JoyY = 127;
-    }
-    else if (down != 0)
-    {
-        JoyY = -128;
-    }
-
-}
-
-void setValuesFromHeroes()
-{
-    SIZE_T bytesRead = 0;
-    char buffer[28];
-    if (ReadProcessMemory(processHandle, (LPCVOID)0x00A23598, buffer, 28, &bytesRead) == false || bytesRead != 28)
-    {
-        CloseHandle(processHandle);
-        processHandle = NULL;
-        gameId = -1;
-        return;
-    }
-
-    int buttons = 0;
-    memcpy(&buttons, &buffer[0], 4);
-
-    float joyX;
-    float joyY;
-    float cameraPan;
-    memcpy(&joyX,      &buffer[16], 4);
-    memcpy(&joyY,      &buffer[20], 4);
-    memcpy(&cameraPan, &buffer[24], 4);
-
-    A = buttons & 1;
-    B = buttons & 2;
-    Y = buttons & 8;
-    X = buttons & 4;
-    S = buttons & 16384;
-    R = buttons & 512;
-    L = buttons & 256;
-
-    if (cameraPan < -0.3f)
-    {
-        R = 1;
-    }
-
-    if (cameraPan > 0.3f)
-    {
-        L = 1;
-    }
-
-    JoyX = (int)( joyX*127);
-    JoyY = (int)(-joyY*127);
-
-    //D-Pad
-    int up    = buttons & 16;
-    int down  = buttons & 32;
-    int left  = buttons & 64;
-    int right = buttons & 128;
-
-    if (right != 0)
-    {
-        JoyX = 127;
-    }
-    else if (left != 0)
-    {
-        JoyX = -128;
-    }
-
-    if (up != 0)
-    {
-        JoyY = 127;
-    }
-    else if (down != 0)
-    {
-        JoyY = -128;
-    }
-    mSpeed = 0;
-}
-
-void setValuesFromMania()
-{
-    SIZE_T bytesRead = 0;
-    char buffer[2];
-
-    if (ReadProcessMemory(processHandle, (LPCVOID)0x013CE9B0, buffer, 2, &bytesRead) == false || bytesRead != 2)
-    {
-        CloseHandle(processHandle);
-        processHandle = NULL;
-        gameId = -1;
-        return;
-    }
-
-    int inputsController = 0;
-    inputsController+=buffer[0];
-    inputsController+=buffer[1]<<8;
-
-    if (ReadProcessMemory(processHandle, (LPCVOID)0x013CD58C, buffer, 2, &bytesRead) == false || bytesRead != 2)
-    {
-        CloseHandle(processHandle);
-        processHandle = NULL;
-        gameId = -1;
-        return;
-    }
-
-    int inputsKeyboard = 0;
-    inputsKeyboard+=buffer[0];
-    inputsKeyboard+=buffer[1]<<8;
-
-    int inputs = inputsKeyboard | inputsController;
-
-    A = inputs & 4096;
-    B = inputs & 8192;
-    Y = inputs & 32768;
-    X = inputs & 16384;
-    S = inputs & 48;
-
-    R = 0;
-    L = 0;
-
-    JoyX = 0;
-    JoyY = 0;
-
-    int up    = inputs & 1;
-    int down  = inputs & 2;
-    int left  = inputs & 4;
-    int right = inputs & 8;
-
-    if (right != 0)
-    {
-        JoyX = 127;
-    }
-    else if (left != 0)
-    {
-        JoyX = -128;
-    }
-
-    if (up != 0)
-    {
-        JoyY = 127;
-    }
-    else if (down != 0)
-    {
-        JoyY = -128;
-    }
-}
-
-void setValuesFromGenerations()
-{
-    SIZE_T bytesRead = 0;
-    char buffer[4];
-
-    if (ReadProcessMemory(processHandle, (LPCVOID)0x01E77B68, buffer, 4, &bytesRead) == false || bytesRead != 4)
-    {
-        CloseHandle(processHandle);
-        processHandle = NULL;
-        gameId = -1;
-        return;
-    }
-
-    float joyX;
-    memcpy(&joyX, &buffer[0], 4);
-
-    if (ReadProcessMemory(processHandle, (LPCVOID)0x01E77B6C, buffer, 4, &bytesRead) == false || bytesRead != 4)
-    {
-        CloseHandle(processHandle);
-        processHandle = NULL;
-        gameId = -1;
-        return;
-    }
-
-    float joyY;
-    memcpy(&joyY, &buffer[0], 4);
-
-    if (ReadProcessMemory(processHandle, (LPCVOID)0x01E76164, buffer, 2, &bytesRead) == false || bytesRead != 2)
-    {
-        CloseHandle(processHandle);
-        processHandle = NULL;
-        gameId = -1;
-        return;
-    }
-
-    int buttons = 0;
-    buttons+=buffer[0];
-    buttons+=buffer[1]<<8;
-
-    A = buttons & 1;
-    B = buttons & 2;
-    Y = buttons & 16;
-    X = buttons & 8;
-    S = buttons & 1024;
-    R = buttons & (8192 | 32768);
-    L = buttons & (4096 | 16384);
-
-    JoyX = (int)(joyX*127);
-    JoyY = (int)(joyY*127);
-    
-}
-
-DWORD getProcessIdByName(const char* processName)
-{
-    PROCESSENTRY32 entry;
-    entry.dwSize = sizeof(PROCESSENTRY32);
-
-    HANDLE snapshot = CreateToolhelp32Snapshot(TH32CS_SNAPPROCESS, NULL);
-
-    if (Process32First(snapshot, &entry) == TRUE)
-    {
-        while (Process32Next(snapshot, &entry) == TRUE)
-        {
-            if (_stricmp(entry.szExeFile, processName) == 0)
-            {
-                DWORD pid = entry.th32ProcessID;
-
-                CloseHandle(snapshot);
-
-                return pid;
-            }
-        }
-    }
-
-    CloseHandle(snapshot);
-    return 0;
-}
-
-//https://stackoverflow.com/questions/41404711/how-to-list-files-in-a-directory-using-the-windows-api
-std::vector<std::string> getSkinFolders(const std::string &directory)
+std::vector<std::string> getButtonSetFolders(const std::string& directory)
 {
     WIN32_FIND_DATAA findData;
     HANDLE hFind = INVALID_HANDLE_VALUE;
     std::string full_path = directory + "\\*";
-    std::vector<std::string> skins;
+    std::vector<std::string> folders;
 
     hFind = FindFirstFileA(full_path.c_str(), &findData);
-
     if (hFind == INVALID_HANDLE_VALUE)
     {
         printf("Error: %s is not a valid directory\n", directory.c_str());
-        return skins;
+        return folders;
     }
-
-    while (FindNextFileA(hFind, &findData) != 0)
-    {
-        if (findData.dwFileAttributes & 16)
+    do {
+        if (findData.dwFileAttributes & FILE_ATTRIBUTE_DIRECTORY)
         {
-            std::string fToCheck = findData.cFileName;
-            fToCheck = fToCheck + "/base.png";
-            std::ifstream f(fToCheck.c_str());
-            if (f.good())
+            std::string folderName = findData.cFileName;
+            if (folderName != "." && folderName != "..")
             {
-                skins.push_back(std::string(findData.cFileName));
+                // Check for a required button image (e.g., buttA.png)
+                std::string filePath = directory + "/" + folderName + "/buttA.png";
+                std::ifstream f(filePath.c_str());
+                if (f.good())
+                    folders.push_back(folderName);
             }
         }
-    }
+    } while (FindNextFileA(hFind, &findData) != 0);
+
     FindClose(hFind);
-    return skins;
+    return folders;
 }
+std::vector<std::string> getToonSetFolders(const std::string& directory)
+{
+    WIN32_FIND_DATAA findData;
+    HANDLE hFind = INVALID_HANDLE_VALUE;
+    std::string full_path = directory + "\\*";
+    std::vector<std::string> folders;
+
+    hFind = FindFirstFileA(full_path.c_str(), &findData);
+    if (hFind == INVALID_HANDLE_VALUE)
+    {
+        printf("Error: %s is not a valid directory\n", directory.c_str());
+        return folders;
+    }
+    do {
+        if (findData.dwFileAttributes & FILE_ATTRIBUTE_DIRECTORY)
+        {
+            std::string folderName = findData.cFileName;
+            if (folderName != "." && folderName != "..")
+            {
+                // Check for a required toon image (e.g., toon0.png)
+                std::string filePath = directory + "/" + folderName + "/toon0.png";
+                std::ifstream f(filePath.c_str());
+                if (f.good())
+                    folders.push_back(folderName);
+            }
+        }
+    } while (FindNextFileA(hFind, &findData) != 0);
+
+    FindClose(hFind);
+    return folders;
+}
+void loadButtonImages()
+{
+    if (buttonSetFolders.empty())
+        return; // Or handle error
+
+    // Construct the full path. We assume your button set folders live in ./sets/
+    std::string buttonFolder = "./sets/" + buttonSetFolders[buttonSetIndex];
+
+    imgA = IMG_LoadTexture(sdlRenderer, (buttonFolder + "/buttA.png").c_str());
+    imgB = IMG_LoadTexture(sdlRenderer, (buttonFolder + "/buttB.png").c_str());
+    imgX = IMG_LoadTexture(sdlRenderer, (buttonFolder + "/buttX.png").c_str());
+    imgY = IMG_LoadTexture(sdlRenderer, (buttonFolder + "/buttY.png").c_str());
+    imgL = IMG_LoadTexture(sdlRenderer, (buttonFolder + "/buttL.png").c_str());
+    imgR = IMG_LoadTexture(sdlRenderer, (buttonFolder + "/buttR.png").c_str());
+    imgLT = IMG_LoadTexture(sdlRenderer, (buttonFolder + "/buttLT.png").c_str());
+    imgRT = IMG_LoadTexture(sdlRenderer, (buttonFolder + "/buttRT.png").c_str());
+    imgS = IMG_LoadTexture(sdlRenderer, (buttonFolder + "/buttS.png").c_str());
+    imgUp = IMG_LoadTexture(sdlRenderer, (buttonFolder + "/buttUp.png").c_str());
+    imgDown = IMG_LoadTexture(sdlRenderer, (buttonFolder + "/buttDown.png").c_str());
+    imgLeft = IMG_LoadTexture(sdlRenderer, (buttonFolder + "/buttLeft.png").c_str());
+    imgRight = IMG_LoadTexture(sdlRenderer, (buttonFolder + "/buttRight.png").c_str());
+}
+void loadToonImages()
+{
+    if (toonSetFolders.empty())
+        return; // Optionally handle the error
+
+    // Construct the full path for the selected toon set folder.
+    std::string toonFolder = "./toons/" + toonSetFolders[toonSetIndex];
+
+    // Before loading new images, clean up any existing textures.
+    for (auto tex : toonFrames) {
+        if (tex != nullptr)
+            SDL_DestroyTexture(tex);
+    }
+    for (auto tex : toonMFrames) {
+        if (tex != nullptr)
+            SDL_DestroyTexture(tex);
+    }
+    toonFrames.clear();
+    toonMFrames.clear();
+
+    const int numFrames = 8;
+    toonFrames.resize(numFrames, nullptr);
+    toonMFrames.resize(numFrames, nullptr);
+
+    for (int i = 0; i < numFrames; i++) {
+        std::string indexString = std::to_string(i);
+        std::string toonPath = toonFolder + "/toon" + indexString + ".png";
+        std::string toonMPath = toonFolder + "/toonM" + indexString + ".png";
+
+        toonFrames[i] = IMG_LoadTexture(sdlRenderer, toonPath.c_str());
+        toonMFrames[i] = IMG_LoadTexture(sdlRenderer, toonMPath.c_str());
+    }
+}
+
+
 void loadImages()
 {
-    if (folderIndex < 0 || folderIndex >= (int)skinFolders.size())
+    loadButtonImages();
+    loadToonImages();
+
+    if (SDL_GetTicks() / 100 <= 10)
     {
-        folderIndex = 0;
+
+        imgHelp1 = IMG_LoadTexture(sdlRenderer, helpPath.c_str());
+        imgHelp2 = IMG_LoadTexture(sdlRenderer, helpPath2.c_str());
+        Sans = TTF_OpenFont(fontPath.c_str(), 17);
+        SansMenu = TTF_OpenFont(fontPath.c_str(), 12);
     }
 
-    std::string folder = skinFolders[folderIndex];
-    std::string indexString = std::to_string(animationIndexNumber);
-
-    imgBase = IMG_LoadTexture(sdlRenderer, (folder + "/base.png").c_str());
-    imgBaseM = IMG_LoadTexture(sdlRenderer, (folder + "/baseM" + indexString + ".png").c_str());
-    imgBaseToon = IMG_LoadTexture(sdlRenderer, (folder + "/toon" + indexString + ".png").c_str());
-    imgBaseToonM = IMG_LoadTexture(sdlRenderer, (folder + "/toonM" + indexString + ".png").c_str());
-    imgStick = IMG_LoadTexture(sdlRenderer, (folder + "/stick.png").c_str());
-    imgA = IMG_LoadTexture(sdlRenderer, (folder + "/buttA.png").c_str());
-    imgB = IMG_LoadTexture(sdlRenderer, (folder + "/buttB.png").c_str());
-    imgX = IMG_LoadTexture(sdlRenderer, (folder + "/buttX.png").c_str());
-    imgY = IMG_LoadTexture(sdlRenderer, (folder + "/buttY.png").c_str());
-    imgL = IMG_LoadTexture(sdlRenderer, (folder + "/buttL.png").c_str());
-    imgR = IMG_LoadTexture(sdlRenderer, (folder + "/buttR.png").c_str());
-    imgLT = IMG_LoadTexture(sdlRenderer, (folder + "/buttLT.png").c_str());
-    imgRT = IMG_LoadTexture(sdlRenderer, (folder + "/buttRT.png").c_str());
-    imgS = IMG_LoadTexture(sdlRenderer, (folder + "/buttS.png").c_str());
-    imgSS = IMG_LoadTexture(sdlRenderer, (folder + "/ss.png").c_str());
-    imgMSM = IMG_LoadTexture(sdlRenderer, (folder + "/msm.png").c_str());
-    imgUp = IMG_LoadTexture(sdlRenderer, (folder + "/buttUp.png").c_str());
-    imgDown = IMG_LoadTexture(sdlRenderer, (folder + "/buttDown.png").c_str());
-    imgLeft = IMG_LoadTexture(sdlRenderer, (folder + "/buttLeft.png").c_str());
-    imgRight = IMG_LoadTexture(sdlRenderer, (folder + "/buttRight.png").c_str());
-    imgStickSmallM = IMG_LoadTexture(sdlRenderer, (folder + "/stickSmallM.png").c_str());
-
-    if (timerValue <= 10) {
-       imgHelp1 = IMG_LoadTexture(sdlRenderer, (folder + "/help.png").c_str());
-       imgHelp2 = IMG_LoadTexture(sdlRenderer, (folder + "/help2.png").c_str());
-       fontPath = folder + "/ARLRDBD.ttf";
-       Sans = TTF_OpenFont(fontPath.c_str(), 11);
-   }
-    folderIndexLast = folderIndex;
 }
+
 void reloadImages()
-{ 
-    if (imgBase        != nullptr) { SDL_DestroyTexture(imgBase      ); imgBase       = nullptr; }
-    if (imgBaseM       != nullptr) { SDL_DestroyTexture(imgBaseM     ); imgBaseM      = nullptr; }
-    if (imgBaseToon    != nullptr) { SDL_DestroyTexture(imgBaseToon  ); imgBaseToon   = nullptr; }
-    if (imgBaseToonM   != nullptr) { SDL_DestroyTexture(imgBaseToonM ); imgBaseToonM  = nullptr; }
-    if (imgStick       != nullptr) { SDL_DestroyTexture(imgStick     ); imgStick      = nullptr; }
-    if (imgA           != nullptr) { SDL_DestroyTexture(imgA         ); imgA          = nullptr; }
-    if (imgB           != nullptr) { SDL_DestroyTexture(imgB         ); imgB          = nullptr; }
-    if (imgX           != nullptr) { SDL_DestroyTexture(imgX         ); imgX          = nullptr; }
-    if (imgY           != nullptr) { SDL_DestroyTexture(imgY         ); imgY          = nullptr; }
-    if (imgL           != nullptr) { SDL_DestroyTexture(imgL         ); imgL          = nullptr; }
-    if (imgR           != nullptr) { SDL_DestroyTexture(imgR         ); imgR          = nullptr; }
-    if (imgLT          != nullptr) { SDL_DestroyTexture(imgLT        ); imgLT         = nullptr; }
-    if (imgRT          != nullptr) { SDL_DestroyTexture(imgRT        ); imgRT         = nullptr; }
-    if (imgS           != nullptr) { SDL_DestroyTexture(imgS         ); imgS          = nullptr; }
-    if (imgUp          != nullptr) { SDL_DestroyTexture(imgUp        ); imgUp         = nullptr; }
-    if (imgDown        != nullptr) { SDL_DestroyTexture(imgDown      ); imgDown       = nullptr; }
-    if (imgLeft        != nullptr) { SDL_DestroyTexture(imgLeft      ); imgLeft       = nullptr; }
-    if (imgRight       != nullptr) { SDL_DestroyTexture(imgRight     ); imgRight      = nullptr; }
-    if (imgStickSmallM != nullptr) { SDL_DestroyTexture(imgStickSmallM); imgStickSmallM = nullptr; }
-    if (imgSS          != nullptr) { SDL_DestroyTexture(imgSS        ); imgSS         = nullptr; }
-    if (imgMSM         != nullptr) { SDL_DestroyTexture(imgMSM       ); imgMSM        = nullptr; }
-    if (imgHelp1       != nullptr) { SDL_DestroyTexture(imgHelp1     ); imgHelp1      = nullptr; }
-    
-    loadImages();
+{
+
+    // Clear old textures if necessary (or call a separate function to free them)
+    for (auto tex : toonFrames) {
+        if (tex != nullptr)
+            SDL_DestroyTexture(tex);
+    }
+    for (auto tex : toonMFrames) {
+        if (tex != nullptr)
+            SDL_DestroyTexture(tex);
+    }
+    toonFrames.clear();
+    toonMFrames.clear();
+
+    const int numFrames = 8;
+    toonFrames.resize(numFrames, nullptr);
+    toonMFrames.resize(numFrames, nullptr);
+
+    loadButtonImages();
+    loadToonImages();
 }
-void cleanUp() {
-    if (imgBase != nullptr) { SDL_DestroyTexture(imgBase); imgBase = nullptr; }
-    if (imgBaseM != nullptr) { SDL_DestroyTexture(imgBaseM); imgBaseM = nullptr; }
+
+void cleanUp()
+{
     if (imgBaseToon != nullptr) { SDL_DestroyTexture(imgBaseToon); imgBaseToon = nullptr; }
     if (imgBaseToonM != nullptr) { SDL_DestroyTexture(imgBaseToonM); imgBaseToonM = nullptr; }
-    if (imgStick != nullptr) { SDL_DestroyTexture(imgStick); imgStick = nullptr; }
     if (imgA != nullptr) { SDL_DestroyTexture(imgA); imgA = nullptr; }
     if (imgB != nullptr) { SDL_DestroyTexture(imgB); imgB = nullptr; }
     if (imgX != nullptr) { SDL_DestroyTexture(imgX); imgX = nullptr; }
@@ -1259,48 +762,449 @@ void cleanUp() {
     if (imgDown != nullptr) { SDL_DestroyTexture(imgDown); imgDown = nullptr; }
     if (imgLeft != nullptr) { SDL_DestroyTexture(imgLeft); imgLeft = nullptr; }
     if (imgRight != nullptr) { SDL_DestroyTexture(imgRight); imgRight = nullptr; }
-    if (imgStickSmallM != nullptr) { SDL_DestroyTexture(imgStickSmallM); imgStickSmallM = nullptr; }
     if (imgSS != nullptr) { SDL_DestroyTexture(imgSS); imgSS = nullptr; }
     if (imgMSM != nullptr) { SDL_DestroyTexture(imgMSM); imgMSM = nullptr; }
-    if (imgHelp1 != nullptr) { SDL_DestroyTexture(imgHelp1); imgHelp1 = nullptr; }
-    if (imgHelp2 != nullptr) { SDL_DestroyTexture(imgHelp1); imgHelp1 = nullptr; }
+    if (imgHelp2 != nullptr) { SDL_DestroyTexture(imgHelp2); imgHelp2 = nullptr; }
+    if (texMessage != nullptr) { SDL_DestroyTexture(texMessage); texMessage = nullptr; }
+    if (texMessage2 != nullptr) { SDL_DestroyTexture(texMessage2); texMessage2 = nullptr; }
+    if (texMessage3 != nullptr) { SDL_DestroyTexture(texMessage2); texMessage3 = nullptr; }
+    if (staticOverlayTexture != nullptr) { SDL_DestroyTexture(staticOverlayTexture); staticOverlayTexture = nullptr; }
+
+}
+
+void loadSettings()
+{
+    // Set default values
+    showCoordinatesSwitch = false;
+    showMSpeedSwitch = false;
+    toonSwitch = true;
+    // Removed: stickSensitivitySwitch
+    dPadSwitch = false;
+    circleSize = 4;
+    joystickCircleColor = { 255, 255, 255, 255 };
+    pulseRate = 0.005f;
+    pulseAmplitude = 6;
+    glowMinAlpha = 0;
+    joystickGlowColor = { 255, 0, 0, 255 };
+    thickLine = true;
+    stickR = 0; stickG = 0; stickB = 0;
+    bgR = 0; bgG = 0; bgB = 0;
+    // Outer ring defaults
+    ringOuterRadius = 128;
+    ringThickness = 8;
+    ringColor = { 255, 255, 255, 255 };
+    ringOutlineColor = { 0, 0, 0, 255 };
+    // Second ring defaults
+    secondRingOuterRadius = 40;
+    secondRingThickness = 4;
+    secondRingColor = { 255, 255, 255, 255 };
+    secondRingOutlineColor = { 0, 0, 0, 255 };
+
+    // New settings defaults for directional thresholds
+    NorthYFloor = 37;
+    NorthYCeil = 41;
+    NorthXFloor = -37;
+    NorthXCeil = 39.9f;
+    WestYCeil = 38.81f;
+    WestYFloor = -36;
+    WestXFloor = -41;
+    WestXCeil = -37;
+    EastYCeil = 38.32f;
+    EastYFloor = -36;
+    EastXFloor = 37;
+    EastXCeil = 41;
+    SouthYCeil = -38;
+    SouthYFloor = -41;
+    SouthXFloor = -37;
+    SouthXCeil = 37;
+
+    // New color and shape settings defaults
+    secondCrossColor = { 255, 255, 255, 255 };
+    firstCrossColor = { 255, 0, 0, 255 };
+    secondGlowColor = { 177, 223, 255, 255 };
+    shapeIndex = 0;
+
+    // New corner settings defaults
+    CornerMax = 37;
+    CornerMin = -37;
+
+    std::vector<std::string> lines = readFileLines("settings.ini");
+    for (auto& line : lines)
+    {
+        std::vector<std::string> kv = split(line, '=');
+        if (kv.size() != 2)
+            continue;
+        std::string key = kv[0];
+        std::string value = kv[1];
+        if (key == "showCoordinatesSwitch")
+            showCoordinatesSwitch = (std::stoi(value) == 1);
+        else if (key == "showMSpeedSwitch")
+            showMSpeedSwitch = (std::stoi(value) == 1);
+        else if (key == "toonSwitch")
+            toonSwitch = (std::stoi(value) == 1);
+        // Removed stickSensitivitySwitch
+        else if (key == "dPadSwitch")
+            dPadSwitch = (std::stoi(value) == 1);
+        else if (key == "circleSize")
+            circleSize = std::stoi(value);
+        else if (key == "joystickCircleColorR")
+            joystickCircleColor.r = (Uint8)std::stoi(value);
+        else if (key == "joystickCircleColorG")
+            joystickCircleColor.g = (Uint8)std::stoi(value);
+        else if (key == "joystickCircleColorB")
+            joystickCircleColor.b = (Uint8)std::stoi(value);
+        else if (key == "pulseRate")
+            pulseRate = std::stof(value);
+        else if (key == "pulseAmplitude")
+            pulseAmplitude = std::stoi(value);
+        else if (key == "glowMinAlpha")
+            glowMinAlpha = std::stoi(value);
+        else if (key == "joystickGlowColorR")
+            joystickGlowColor.r = (Uint8)std::stoi(value);
+        else if (key == "joystickGlowColorG")
+            joystickGlowColor.g = (Uint8)std::stoi(value);
+        else if (key == "joystickGlowColorB")
+            joystickGlowColor.b = (Uint8)std::stoi(value);
+        else if (key == "thickLine")
+            thickLine = (std::stoi(value) == 1);
+        else if (key == "stickR")
+            stickR = std::stoi(value);
+        else if (key == "stickG")
+            stickG = std::stoi(value);
+        else if (key == "stickB")
+            stickB = std::stoi(value);
+        else if (key == "bgR")
+            bgR = std::stoi(value);
+        else if (key == "bgG")
+            bgG = std::stoi(value);
+        else if (key == "bgB")
+            bgB = std::stoi(value);
+        // Outer ring settings
+        else if (key == "ringOuterRadius")
+            ringOuterRadius = std::stoi(value);
+        else if (key == "ringThickness")
+            ringThickness = std::stoi(value);
+        else if (key == "ringColorR")
+            ringColor.r = (Uint8)std::stoi(value);
+        else if (key == "ringColorG")
+            ringColor.g = (Uint8)std::stoi(value);
+        else if (key == "ringColorB")
+            ringColor.b = (Uint8)std::stoi(value);
+        else if (key == "ringOutlineColorR")
+            ringOutlineColor.r = (Uint8)std::stoi(value);
+        else if (key == "ringOutlineColorG")
+            ringOutlineColor.g = (Uint8)std::stoi(value);
+        else if (key == "ringOutlineColorB")
+            ringOutlineColor.b = (Uint8)std::stoi(value);
+        // Second ring settings
+        else if (key == "secondRingOuterRadius")
+            secondRingOuterRadius = std::stoi(value);
+        else if (key == "secondRingThickness")
+            secondRingThickness = std::stoi(value);
+        else if (key == "secondRingColorR")
+            secondRingColor.r = (Uint8)std::stoi(value);
+        else if (key == "secondRingColorG")
+            secondRingColor.g = (Uint8)std::stoi(value);
+        else if (key == "secondRingColorB")
+            secondRingColor.b = (Uint8)std::stoi(value);
+        else if (key == "secondRingOutlineColorR")
+            secondRingOutlineColor.r = (Uint8)std::stoi(value);
+        else if (key == "secondRingOutlineColorG")
+            secondRingOutlineColor.g = (Uint8)std::stoi(value);
+        else if (key == "secondRingOutlineColorB")
+            secondRingOutlineColor.b = (Uint8)std::stoi(value);
+        // New directional threshold settings
+        else if (key == "NorthYFloor")
+            NorthYFloor = std::stof(value);
+        else if (key == "NorthYCeil")
+            NorthYCeil = std::stof(value);
+        else if (key == "NorthXFloor")
+            NorthXFloor = std::stof(value);
+        else if (key == "NorthXCeil")
+            NorthXCeil = std::stof(value);
+        else if (key == "WestYCeil")
+            WestYCeil = std::stof(value);
+        else if (key == "WestYFloor")
+            WestYFloor = std::stof(value);
+        else if (key == "WestXFloor")
+            WestXFloor = std::stof(value);
+        else if (key == "WestXCeil")
+            WestXCeil = std::stof(value);
+        else if (key == "EastYCeil")
+            EastYCeil = std::stof(value);
+        else if (key == "EastYFloor")
+            EastYFloor = std::stof(value);
+        else if (key == "EastXFloor")
+            EastXFloor = std::stof(value);
+        else if (key == "EastXCeil")
+            EastXCeil = std::stof(value);
+        else if (key == "SouthYCeil")
+            SouthYCeil = std::stof(value);
+        else if (key == "SouthYFloor")
+            SouthYFloor = std::stof(value);
+        else if (key == "SouthXFloor")
+            SouthXFloor = std::stof(value);
+        else if (key == "SouthXCeil")
+            SouthXCeil = std::stof(value);
+        // New color and shape settings
+        else if (key == "secondCrossColorR")
+            secondCrossColor.r = (Uint8)std::stoi(value);
+        else if (key == "secondCrossColorG")
+            secondCrossColor.g = (Uint8)std::stoi(value);
+        else if (key == "secondCrossColorB")
+            secondCrossColor.b = (Uint8)std::stoi(value);
+        else if (key == "firstCrossColorR")
+            firstCrossColor.r = (Uint8)std::stoi(value);
+        else if (key == "firstCrossColorG")
+            firstCrossColor.g = (Uint8)std::stoi(value);
+        else if (key == "firstCrossColorB")
+            firstCrossColor.b = (Uint8)std::stoi(value);
+        else if (key == "secondGlowColorR")
+            secondGlowColor.r = (Uint8)std::stoi(value);
+        else if (key == "secondGlowColorG")
+            secondGlowColor.g = (Uint8)std::stoi(value);
+        else if (key == "secondGlowColorB")
+            secondGlowColor.b = (Uint8)std::stoi(value);
+        else if (key == "shapeIndex")
+            shapeIndex = std::stoi(value);
+        // New corner settings
+        else if (key == "CornerMax")
+            CornerMax = std::stoi(value);
+        else if (key == "CornerMin")
+            CornerMin = std::stoi(value);
+        else if (key == "ButtonSetIndex")
+            buttonSetIndex = std::stoi(value);
+        else if (key == "ToonIndex")
+            toonSetIndex = std::stoi(value);
+    }
+
+}
+void saveSettings()
+{
+    std::ofstream file("settings.ini");
+    if (file.is_open())
+    {
+        file << "showCoordinatesSwitch=" << (showCoordinatesSwitch ? "1" : "0") << "\n";
+        file << "showMSpeedSwitch=" << (showMSpeedSwitch ? "1" : "0") << "\n";
+        file << "toonSwitch=" << (toonSwitch ? "1" : "0") << "\n";
+        // Removed: stickSensitivitySwitch
+        file << "dPadSwitch=" << (dPadSwitch ? "1" : "0") << "\n";
+        file << "circleSize=" << circleSize << "\n";
+        file << "joystickCircleColorR=" << (int)joystickCircleColor.r << "\n";
+        file << "joystickCircleColorG=" << (int)joystickCircleColor.g << "\n";
+        file << "joystickCircleColorB=" << (int)joystickCircleColor.b << "\n";
+        file << "pulseRate=" << pulseRate << "\n";
+        file << "pulseAmplitude=" << pulseAmplitude << "\n";
+        file << "glowMinAlpha=" << glowMinAlpha << "\n";
+        file << "joystickGlowColorR=" << (int)joystickGlowColor.r << "\n";
+        file << "joystickGlowColorG=" << (int)joystickGlowColor.g << "\n";
+        file << "joystickGlowColorB=" << (int)joystickGlowColor.b << "\n";
+        file << "thickLine=" << (thickLine ? "1" : "0") << "\n";
+        file << "stickR=" << stickR << "\n";
+        file << "stickG=" << stickG << "\n";
+        file << "stickB=" << stickB << "\n";
+        file << "bgR=" << bgR << "\n";
+        file << "bgG=" << bgG << "\n";
+        file << "bgB=" << bgB << "\n";
+        // Outer ring settings
+        file << "ringOuterRadius=" << ringOuterRadius << "\n";
+        file << "ringThickness=" << ringThickness << "\n";
+        file << "ringColorR=" << (int)ringColor.r << "\n";
+        file << "ringColorG=" << (int)ringColor.g << "\n";
+        file << "ringColorB=" << (int)ringColor.b << "\n";
+        file << "ringOutlineColorR=" << (int)ringOutlineColor.r << "\n";
+        file << "ringOutlineColorG=" << (int)ringOutlineColor.g << "\n";
+        file << "ringOutlineColorB=" << (int)ringOutlineColor.b << "\n";
+        // Second ring settings
+        file << "secondRingOuterRadius=" << secondRingOuterRadius << "\n";
+        file << "secondRingThickness=" << secondRingThickness << "\n";
+        file << "secondRingColorR=" << (int)secondRingColor.r << "\n";
+        file << "secondRingColorG=" << (int)secondRingColor.g << "\n";
+        file << "secondRingColorB=" << (int)secondRingColor.b << "\n";
+        file << "secondRingOutlineColorR=" << (int)secondRingOutlineColor.r << "\n";
+        file << "secondRingOutlineColorG=" << (int)secondRingOutlineColor.g << "\n";
+        file << "secondRingOutlineColorB=" << (int)secondRingOutlineColor.b << "\n";
+        // New directional threshold settings
+        file << "NorthYFloor=" << NorthYFloor << "\n";
+        file << "NorthYCeil=" << NorthYCeil << "\n";
+        file << "NorthXFloor=" << NorthXFloor << "\n";
+        file << "NorthXCeil=" << NorthXCeil << "\n";
+        file << "WestYCeil=" << WestYCeil << "\n";
+        file << "WestYFloor=" << WestYFloor << "\n";
+        file << "WestXFloor=" << WestXFloor << "\n";
+        file << "WestXCeil=" << WestXCeil << "\n";
+        file << "EastYCeil=" << EastYCeil << "\n";
+        file << "EastYFloor=" << EastYFloor << "\n";
+        file << "EastXFloor=" << EastXFloor << "\n";
+        file << "EastXCeil=" << EastXCeil << "\n";
+        file << "SouthYCeil=" << SouthYCeil << "\n";
+        file << "SouthYFloor=" << SouthYFloor << "\n";
+        file << "SouthXFloor=" << SouthXFloor << "\n";
+        file << "SouthXCeil=" << SouthXCeil << "\n";
+        // New color and shape settings
+        file << "secondCrossColorR=" << (int)secondCrossColor.r << "\n";
+        file << "secondCrossColorG=" << (int)secondCrossColor.g << "\n";
+        file << "secondCrossColorB=" << (int)secondCrossColor.b << "\n";
+        file << "firstCrossColorR=" << (int)firstCrossColor.r << "\n";
+        file << "firstCrossColorG=" << (int)firstCrossColor.g << "\n";
+        file << "firstCrossColorB=" << (int)firstCrossColor.b << "\n";
+        file << "secondGlowColorR=" << (int)secondGlowColor.r << "\n";
+        file << "secondGlowColorG=" << (int)secondGlowColor.g << "\n";
+        file << "secondGlowColorB=" << (int)secondGlowColor.b << "\n";
+        file << "shapeIndex=" << shapeIndex << "\n";
+        // New corner settings
+        file << "CornerMax=" << CornerMax << "\n";
+        file << "CornerMin=" << CornerMin << "\n";
+        file << "ButtonSetIndex=" << buttonSetIndex << "\n";
+        file << "ToonIndex=" << toonSetIndex << "\n";
+        file.close();
+    }
+}
+
+void setIcon()
+{
+#include "icon.c"
+    Uint32 rmask = 0x000000ff, gmask = 0x0000ff00, bmask = 0x00ff0000, amask;
+    amask = (imgIcon.bytes_per_pixel == 3) ? 0 : 0xff000000;
+    SDL_Surface* icon = SDL_CreateRGBSurfaceFrom((void*)imgIcon.pixel_data,
+        imgIcon.width, imgIcon.height,
+        imgIcon.bytes_per_pixel * 8,
+        imgIcon.bytes_per_pixel * imgIcon.width,
+        rmask, gmask, bmask, amask);
+    SDL_SetWindowIcon(sdlWindow, icon);
+    SDL_FreeSurface(icon);
+}
+
+SDL_GameController* controller = nullptr;
+
+static void speedCheck(float cordX, float cordY)
+{
+    mSpeed = false;
+    float crdX = cordX * 128;
+    float crdY = cordY * 128;
+    int crdXrounded = (int)crdX;
+    int crdYrounded = (int)crdY;
+
+    
+    //50 Stick Sense
+    if (crdY >= NorthYFloor && crdY <= NorthYCeil && crdX >= NorthXFloor && crdX <= NorthXCeil) { mSpeed = true; } // Handles Northern Slice
+    if (crdY <= SouthYCeil && crdY >= SouthYFloor && crdX >= SouthXFloor && crdX <= SouthXCeil) { mSpeed = true; } // Handles Southern Slice
+    if (crdX >= EastXFloor && crdX <= EastXCeil && crdY >= EastYFloor && crdY <= EastYCeil) { mSpeed = true; } // Handles Eastern Slice
+    if (crdX <= WestXCeil && crdX >= WestXFloor && crdY >= WestYFloor && crdY <= WestYCeil) { mSpeed = true; } // Handles Western Slice
+    if ((crdXrounded >= CornerMin && crdXrounded <= CornerMax) && (crdYrounded >= CornerMin && crdYrounded <= CornerMax)) { mSpeed = true; }  // Up-Right case 
+    if ((crdXrounded <= CornerMinN && crdXrounded >= CornerMaxN) && (crdYrounded >= CornerMin && crdYrounded <= CornerMax)) { mSpeed = true; }  // Up-Left case 
+    if ((crdXrounded >= CornerMin && crdXrounded <= CornerMax) && (crdYrounded <= CornerMinN && crdYrounded >= CornerMaxN)) { mSpeed = true; }  // Down-Right case 
+    if ((crdXrounded <= CornerMinN && crdXrounded >= CornerMaxN) && (crdYrounded <= CornerMinN && crdYrounded >= CornerMaxN)) { mSpeed = true; }  // Down-Left case 
+    
+    //uncomment to  debug MSpeed issues
+    // printf("SpeedCheck - crdX: %.2f, crdY: %.2f, Rounded: (%d, %d), Corners: [CornerMin: %d, CornerMax: %d, CornerMinN: %d, CornerMaxN: %d], mSpeed: %s\n", crdX, crdY, crdXrounded, crdYrounded, CornerMin, CornerMax, CornerMinN, CornerMaxN, (mSpeed ? "true" : "false"));
+
+}
+void pollAndUpdateGameController()
+{
+    char a = 0, b = 0, y = 0, x = 0, s = 0, r = 0, l = 0;
+    float joyX = 0.0f, joyY = 0.0f;
+    SDL_GameControllerUpdate();
+    if (SDL_GameControllerGetAttached(controller) == SDL_FALSE)
+    {
+        controllerIsConnected = false;
+        int numJoysticks = SDL_NumJoysticks();
+        for (int i = 0; i < numJoysticks; i++)
+        {
+            if (SDL_IsGameController(i) != SDL_FALSE)
+            {
+                controller = SDL_GameControllerOpen(i);
+                if (SDL_GameControllerGetAttached(controller) != SDL_FALSE)
+                    break;
+            }
+        }
+    }
+    else
+    {
+        controllerIsConnected = true;
+        a = SDL_GameControllerGetButton(controller, SDL_CONTROLLER_BUTTON_A);
+        b = SDL_GameControllerGetButton(controller, SDL_CONTROLLER_BUTTON_B);
+        y = SDL_GameControllerGetButton(controller, SDL_CONTROLLER_BUTTON_Y);
+        x = SDL_GameControllerGetButton(controller, SDL_CONTROLLER_BUTTON_X);
+        s = SDL_GameControllerGetButton(controller, SDL_CONTROLLER_BUTTON_START);
+        r = SDL_GameControllerGetButton(controller, SDL_CONTROLLER_BUTTON_RIGHTSHOULDER);
+        l = SDL_GameControllerGetButton(controller, SDL_CONTROLLER_BUTTON_LEFTSHOULDER);
+        char du = SDL_GameControllerGetButton(controller, SDL_CONTROLLER_BUTTON_DPAD_UP);
+        char dd = SDL_GameControllerGetButton(controller, SDL_CONTROLLER_BUTTON_DPAD_DOWN);
+        char dl = SDL_GameControllerGetButton(controller, SDL_CONTROLLER_BUTTON_DPAD_LEFT);
+        char dr = SDL_GameControllerGetButton(controller, SDL_CONTROLLER_BUTTON_DPAD_RIGHT);
+        int leftX = (int)SDL_GameControllerGetAxis(controller, SDL_CONTROLLER_AXIS_LEFTX);
+        int leftY = (int)SDL_GameControllerGetAxis(controller, SDL_CONTROLLER_AXIS_LEFTY);
+        int triggerL = (int)SDL_GameControllerGetAxis(controller, SDL_CONTROLLER_AXIS_TRIGGERLEFT);
+        int triggerR = (int)SDL_GameControllerGetAxis(controller, SDL_CONTROLLER_AXIS_TRIGGERRIGHT);
+        if (leftX > 0) leftX++;
+        if (leftY > 0) leftY++;
+        if (triggerL > 0) triggerL++;
+        if (triggerR > 0) triggerR++;
+        joyX = leftX / 32768.0f;
+        joyY = -leftY / 32768.0f;
+        float trigL = triggerL / 32768.0f;
+        float trigR = triggerR / 32768.0f;
+        if (trigL > 0.5f) tlFlag = true;
+        if (trigR > 0.5f) trFlag = true;
+        pRight = (dr != 0) ? 1 : 0;
+        pLeft = (dl != 0) ? 1 : 0;
+        pUp = (du != 0) ? 1 : 0;
+        pDown = (dd != 0) ? 1 : 0;
+        if (dPadSwitch)
+        {
+            if (dr != 0)
+                joyX = 1.0f;
+            else if (dl != 0)
+                joyX = -1.0f;
+            if (du != 0)
+                joyY = 1.0f;
+            else if (dd != 0)
+                joyY = -1.0f;
+        }
+    }
+    A = a; B = b; Y = y; X = x; S = s; R = r; L = l;
+    LT = tlFlag; RT = trFlag;
+    trFlag = false; tlFlag = false;
+    int rawJoyX = (int)(joyX * 128);
+    int rawJoyY = (int)(joyY * 128);
+    float smoothingFactor = 0.7f;
+    smoothedJoyX += (rawJoyX - smoothedJoyX) * smoothingFactor;
+    smoothedJoyY += (rawJoyY - smoothedJoyY) * smoothingFactor;
+    JoyX = (int)smoothedJoyX;
+    JoyY = (int)smoothedJoyY;
+    mSpeed = false;
+    if (showMSpeedSwitch) { speedCheck(joyX, joyY);}
+    if (showCoordinatesSwitch) { updateText((joyX * 128), (joyY * 128)); }
+}
+
+void UpdateAnimation()
+{
+    // Calculate the current animation frame index (0-7)
+    animationIndexNumber = (SDL_GetTicks64() / 120) % 8;
+
+    // Instead of reloading, simply update your displayed frame pointers:
+    if (toonSwitch)
+        imgBaseToon = toonFrames[animationIndexNumber];
+
+    if (mSpeed)
+        imgBaseToonM = toonMFrames[animationIndexNumber];
+
+    // Update the text surfaces as before.
+    surfaceMessage = TTF_RenderText_Solid(Sans, messageToDisplay.c_str(), White);
+    surfaceMessage2 = TTF_RenderText_Solid(Sans, messageToDisplay2.c_str(), White);
+
+    recMessage.w = surfaceMessage->w;
+    recMessage2.w = surfaceMessage2->w;
+
     if (texMessage != nullptr) { SDL_DestroyTexture(texMessage); texMessage = nullptr; }
     if (texMessage2 != nullptr) { SDL_DestroyTexture(texMessage2); texMessage2 = nullptr; }
 
-}
-void UpdateAnimation()
-{
-    animationIndexNumber = (SDL_GetTicks64() / 120) % 8;
-    if (indexLast != animationIndexNumber)
-    {
-        std::string folder = skinFolders[folderIndex];
-        std::string indexString = std::to_string(animationIndexNumber);
-        if (mSpeed == true) {
-            if (imgBaseM != nullptr) { SDL_DestroyTexture(imgBaseM); imgBaseM = nullptr; }
-            imgBaseM = IMG_LoadTexture(sdlRenderer, (folder + "/baseM" + indexString + ".png").c_str());
-            if (toonSwitch) {
-                if (imgBaseToonM != nullptr) { SDL_DestroyTexture(imgBaseToonM); imgBaseToonM = nullptr; }
-                imgBaseToonM = IMG_LoadTexture(sdlRenderer, (folder + "/toonM" + indexString + ".png").c_str());
-            }
-        }
-        if(toonSwitch == true){
-            if (imgBaseToon != nullptr) { SDL_DestroyTexture(imgBaseToon); imgBaseToon = nullptr; }
-            imgBaseToon = IMG_LoadTexture(sdlRenderer, (folder + "/toon" + indexString + ".png").c_str());
-        }
+    texMessage = SDL_CreateTextureFromSurface(sdlRenderer, surfaceMessage);
+    texMessage2 = SDL_CreateTextureFromSurface(sdlRenderer, surfaceMessage2);
 
-
-        indexLast = animationIndexNumber;
-    }
-        surfaceMessage = TTF_RenderText_Solid(Sans, messageToDisplay.c_str(), White);
-        surfaceMessage2 = TTF_RenderText_Solid(Sans, messageToDisplay2.c_str(), White);
-        recMessage = { 92, (150 - surfaceMessage->h), surfaceMessage->w, surfaceMessage->h };
-        recMessage2 = { 134, (150 - surfaceMessage2->h), surfaceMessage2->w, surfaceMessage2->h };
-
-        if (texMessage != nullptr) { SDL_DestroyTexture(texMessage); texMessage = nullptr; }
-        if (texMessage2 != nullptr) { SDL_DestroyTexture(texMessage2); texMessage2 = nullptr; }
-        texMessage = SDL_CreateTextureFromSurface(sdlRenderer, surfaceMessage);
-        texMessage2 = SDL_CreateTextureFromSurface(sdlRenderer, surfaceMessage2);
-
+    SDL_FreeSurface(surfaceMessage);
+    SDL_FreeSurface(surfaceMessage2);
 }
 
 void saveIndex()
@@ -1309,14 +1213,509 @@ void saveIndex()
     fileInd << std::to_string(folderIndex);
     fileInd.close();
 }
-void saveConfig()
+void renderStaticOverlay()
 {
-    std::ofstream fileInd("MenuConfig.ini");
-    fileInd << (std::to_string(showCoordinatesSwitch) + ",");
-    fileInd << (std::to_string(showMSpeedSwitch) + ",");
-    fileInd << (std::to_string(toonSwitch) + ",");
-    fileInd << (std::to_string(stickSensitivitySwitch) + ",");
-    fileInd << std::to_string(dPadSwitch);
-    fileInd.close();
+    // Set static overlay as the target.
+    SDL_SetRenderTarget(sdlRenderer, staticOverlayTexture);
+    // Clear with a transparent background.
+    SDL_SetRenderDrawColor(sdlRenderer, 0, 0, 0, 0);
+    SDL_RenderClear(sdlRenderer);
 
+    int centerX = 288;
+    int centerY = 144;
+    int firstCrossLength = secondRingOuterRadius + 4;  // Based on your current code
+
+    switch (shapeIndex) {
+        case 0: case 1:
+            // ----- Circular Ring Case -----
+            // Draw the annulus normally.
+            DrawThirdCrosshairAnnulusMirrored(sdlRenderer, centerX, centerY,
+                ringOuterRadius, ringThickness,
+                firstCrossThickness, firstCrossColor,
+                thirdCrossAngleOffset);
+            // Draw the first crosshair (8 rays).
+            SDL_SetRenderDrawColor(sdlRenderer, firstCrossColor.r, firstCrossColor.g, firstCrossColor.b, firstCrossColor.a);
+            for (int i = 0; i < 8; i++) {
+                float angle = i * (M_PI / 4.0f);
+                int x2 = centerX + (int)(firstCrossLength * cos(angle));
+                int y2 = centerY + (int)(firstCrossLength * sin(angle));
+                DrawThickLineRect(sdlRenderer, centerX, centerY, x2, y2, firstCrossThickness, firstCrossColor);
+            }
+            // Draw the second crosshair (plus sign).
+            SDL_SetRenderDrawColor(sdlRenderer, secondCrossColor.r, secondCrossColor.g, secondCrossColor.b, secondCrossColor.a);
+            DrawThickLine(sdlRenderer, centerX - secondCrossLength, centerY,
+                centerX + secondCrossLength, centerY, secondCrossThickness);
+            DrawThickLine(sdlRenderer, centerX, centerY - secondCrossLength,
+                centerX, centerY + secondCrossLength, secondCrossThickness);
+            break;
+
+            case 2:
+            {
+                // ----- Octagon Ring Case -----
+                // Draw the outer ring as an octagon.
+                // Subtract 4 from the outer radius and 4 from the thickness.
+                DrawOctagon(sdlRenderer, centerX, centerY, ringOuterRadius - 4, ringThickness - 4, ringColor);
+                // Draw the first crosshair (8 rays).
+                SDL_SetRenderDrawColor(sdlRenderer, firstCrossColor.r, firstCrossColor.g, firstCrossColor.b, firstCrossColor.a);
+                for (int i = 0; i < 8; i++) {
+                    float angle = i * (M_PI / 4.0f);
+                    int x2 = centerX + (int)(firstCrossLength * cos(angle));
+                    int y2 = centerY + (int)(firstCrossLength * sin(angle));
+                    DrawThickLineRect(sdlRenderer, centerX, centerY, x2, y2, firstCrossThickness, firstCrossColor);
+                }
+                // Draw the second crosshair (plus sign).
+                SDL_SetRenderDrawColor(sdlRenderer, secondCrossColor.r, secondCrossColor.g, secondCrossColor.b, secondCrossColor.a);
+                DrawThickLine(sdlRenderer, centerX - secondCrossLength, centerY,
+                    centerX + secondCrossLength, centerY, secondCrossThickness);
+                DrawThickLine(sdlRenderer, centerX, centerY - secondCrossLength,
+                    centerX, centerY + secondCrossLength, secondCrossThickness);
+                // Draw the inner ring as an octagon.
+                DrawOctagon(sdlRenderer, centerX, centerY, secondRingOuterRadius - 4, secondRingThickness - 1, secondRingColor);
+            }
+            break;
+            case 3: {
+                    // ---- Filled Circle with Simple Plus Sign Crosshair ----
+                    // Draw a filled circle.
+                DrawFilledCircle(sdlRenderer, centerX, centerY, ringOuterRadius, ringColor);
+                // Optionally, draw an outline for the circle.
+                DrawCircleOutline(sdlRenderer, centerX, centerY, ringOuterRadius, ringOutlineColor);
+                // Draw the simple plus sign crosshair:
+                SDL_SetRenderDrawColor(sdlRenderer, secondCrossColor.r, secondCrossColor.g, secondCrossColor.b, secondCrossColor.a);
+                DrawThickLine(sdlRenderer, centerX - secondCrossLength, centerY, centerX + secondCrossLength, centerY, secondCrossThickness);
+                DrawThickLine(sdlRenderer, centerX, centerY - secondCrossLength, centerX, centerY + secondCrossLength, secondCrossThickness);
+                }
+                  break;
+    // Add additional cases if needed.
+    }
+
+    // Reset render target to default (screen).
+    SDL_SetRenderTarget(sdlRenderer, nullptr);
+    staticOverlayDirty = false;
+}
+
+
+
+// Create a global DialogMenu instance.
+DialogMenu dialogMenu;
+
+int main(int argc, char* argv[])
+{
+    (void)argc;
+    (void)argv;
+    HWND handle = GetConsoleWindow();
+    ShowWindow(handle, SW_HIDE);
+
+    SDL_SetHintWithPriority(SDL_HINT_GAMECONTROLLER_USE_BUTTON_LABELS, "0", SDL_HINT_OVERRIDE);
+    SDL_SetHintWithPriority(SDL_HINT_JOYSTICK_ALLOW_BACKGROUND_EVENTS, "1", SDL_HINT_OVERRIDE);
+
+    SDL_Init(SDL_INIT_VIDEO);
+    SDL_Init(SDL_INIT_GAMECONTROLLER);
+    TTF_Init();
+    IMG_Init(IMG_INIT_PNG);
+    SDL_JoystickEventState(SDL_ENABLE);
+
+
+    sdlWindow = SDL_CreateWindow("Controller Input", SDL_WINDOWPOS_CENTERED, SDL_WINDOWPOS_CENTERED, 420, 300, SDL_WINDOW_SHOWN);
+
+    for (int rendererIndex = 0; rendererIndex < 100; rendererIndex++)
+    {
+        sdlRenderer = SDL_CreateRenderer(sdlWindow, rendererIndex, SDL_RENDERER_ACCELERATED | SDL_RENDERER_PRESENTVSYNC);
+        if (sdlRenderer == nullptr)
+        {
+            sdlRenderer = SDL_CreateRenderer(sdlWindow, -1, SDL_RENDERER_ACCELERATED | SDL_RENDERER_PRESENTVSYNC);
+            break;
+        }
+        SDL_RendererInfo info;
+        SDL_GetRendererInfo(sdlRenderer, &info);
+        std::string name = info.name;
+        if (name == "direct3d11")
+            break;
+        else
+        {
+            SDL_DestroyRenderer(sdlRenderer);
+            sdlRenderer = nullptr;
+        }
+    }
+
+    // Create an off-screen texture for static (pre-rendered) shapes
+    staticOverlayTexture = SDL_CreateTexture(sdlRenderer, SDL_PIXELFORMAT_RGBA8888, SDL_TEXTUREACCESS_TARGET, 420, 300);
+    SDL_SetTextureBlendMode(staticOverlayTexture, SDL_BLENDMODE_BLEND);
+
+
+    SDL_Texture* textureTransparent = SDL_CreateTexture(sdlRenderer, SDL_PIXELFORMAT_RGBA8888, SDL_TEXTUREACCESS_TARGET, 420, 300);
+    SDL_SetTextureBlendMode(textureTransparent, SDL_BLENDMODE_BLEND);
+    SDL_SetRenderDrawBlendMode(sdlRenderer, SDL_BLENDMODE_BLEND);
+    // Create an off-screen texture (ensure it has an alpha channel)
+    SDL_Texture* offscreen = SDL_CreateTexture(sdlRenderer, SDL_PIXELFORMAT_RGBA8888, SDL_TEXTUREACCESS_TARGET, 420, 300);
+    SDL_SetTextureBlendMode(offscreen, SDL_BLENDMODE_BLEND);
+    SDL_Texture* glowTexture = createGlowTexture(circleSize, pulseAmplitude, joystickGlowColor);
+    setIcon();
+
+    SDL_SysWMinfo wmInfo;
+    SDL_VERSION(&wmInfo.version);
+    SDL_GetWindowWMInfo(sdlWindow, &wmInfo);
+    HWND hwnd = wmInfo.info.win.window;
+    SetWindowLong(hwnd, GWL_STYLE, GetWindowLong(hwnd, GWL_STYLE) & ~WS_MINIMIZEBOX);
+    SetWindowLong(hwnd, GWL_STYLE, GetWindowLong(hwnd, GWL_STYLE) & ~WS_MAXIMIZEBOX);
+    SetWindowLong(hwnd, GWL_EXSTYLE, GetWindowLong(hwnd, GWL_EXSTYLE) | WS_EX_LAYERED);
+    SetLayeredWindowAttributes(hwnd, 0, 255, LWA_ALPHA);
+
+
+    loadSettings();
+
+    ringTexture = createRingTexture(288, 144, ringOuterRadius, ringThickness, ringColor, ringOutlineColor);
+    ringLayerTexture = createRingTexture(288, 144, ringOuterRadius, ringThickness, ringColor, ringOutlineColor);
+    ringInnerLayerTexture = createRingTexture(288, 144, secondRingOuterRadius, secondRingThickness, secondRingColor, secondRingOutlineColor);
+    updateRingTextures();
+
+    CornerMinN = (CornerMin * -1);
+    CornerMaxN = (CornerMax * -1);
+    folderIndex = 0;
+    std::vector<std::string> indexLines = readFileLines("Index.ini");
+    if (indexLines.size() == 1)
+        folderIndex = std::stoi(indexLines[0]);
+
+    loadImages();
+    buttonSetFolders = getButtonSetFolders("./sets");
+    if (buttonSetFolders.empty())
+    {
+        printf("No button sets found in ./sets/\n");
+        // You might want to exit or fallback to a default.
+    }
+    else
+    {
+        printf("Found %d button sets.\n", (int)buttonSetFolders.size());
+        loadButtonImages();
+    }
+    toonSetFolders = getToonSetFolders("./toons");
+    if (toonSetFolders.empty())
+    {
+        printf("No toon sets found in ./toons/\n");
+        // Optionally exit or fall back to a default set.
+    }
+    else
+    {
+        printf("Found %d toon sets.\n", (int)toonSetFolders.size());
+        loadToonImages();
+    }
+
+    // Initialize the dialog menu with our font.
+    dialogMenu.init(SansMenu);
+
+    surfaceMessage3 = TTF_RenderText_Solid(Sans, messageToDisplay3.c_str(), White);
+    texMessage3 = SDL_CreateTextureFromSurface(sdlRenderer, surfaceMessage3);
+
+    bool running = true;
+    while (running)
+    {
+        SDL_Event e;
+        while (SDL_PollEvent(&e))
+        {
+            timerValue = SDL_GetTicks() / 100;
+            // Pass events for the dialog window to the dialog menu.
+            if (dialogMenu.isActive())
+                dialogMenu.handleEvent(e);
+            else {
+                switch (e.type)
+                {
+                case SDL_QUIT:
+                    running = false;
+                    break;
+                case SDL_KEYDOWN:
+                {
+                    SDL_KeyboardEvent* keyEv = (SDL_KeyboardEvent*)&e;
+                    if (keyEv->keysym.sym == SDLK_UP)
+                    {
+                        toonSetIndex--;
+                        if (toonSetIndex < 0)
+                            toonSetIndex = toonSetFolders.size() - 1;
+                        loadToonImages();
+                    }
+                    else if (keyEv->keysym.sym == SDLK_DOWN)
+                    {
+                        toonSetIndex++;
+                        if (toonSetIndex >= (int)toonSetFolders.size())
+                            toonSetIndex = 0;
+                        loadToonImages();
+                    }
+                    if (keyEv->keysym.sym == SDLK_LEFT)
+                    {
+                        buttonSetIndex--;
+                        if (buttonSetIndex < 0)
+                            buttonSetIndex = buttonSetFolders.size() - 1;
+                        loadButtonImages();
+                    }
+                    else if (keyEv->keysym.sym == SDLK_RIGHT)
+                    {
+                        buttonSetIndex++;
+                        if (buttonSetIndex >= buttonSetFolders.size())
+                            buttonSetIndex = 0;
+                        loadButtonImages();
+                    }
+                    if (keyEv->keysym.sym == SDLK_F1)
+                        showCoordinatesSwitch = !showCoordinatesSwitch;
+                    if (keyEv->keysym.sym == SDLK_F2)
+                        toonSwitch = !toonSwitch;
+                    if (keyEv->keysym.sym == SDLK_F3)
+                        showMSpeedSwitch = !showMSpeedSwitch;
+                    if (keyEv->keysym.sym == SDLK_F4)
+                        dPadSwitch = !dPadSwitch;
+                    if (keyEv->keysym.sym == SDLK_F5) {
+                        if (shapeIndex < shapeIndexMaximum) { shapeIndex = shapeIndex + 1; }
+                        else {
+                            shapeIndex = 0;
+                        }
+                        updateRingTextures();
+                        staticOverlayDirty = true;
+
+                    }
+                    // h key opens the dialog menu.
+                    if (keyEv->keysym.sym == SDLK_m)
+                    {
+                        dialogMenu.setActive(true);
+                        dialogMenu.refreshFields();
+                    }
+                    break;
+                }
+                default:
+                    break;
+                }
+            }
+        }
+
+        pollAndUpdateGameController();
+
+        // Check if the static overlay should be updated:
+        // Update every frame if the settings dialog is active, otherwise only when marked dirty.
+        if (staticOverlayDirty || dialogMenu.isActive()) {
+            renderStaticOverlay();
+        }
+
+        // Render objects to the off-screen texture
+        SDL_SetRenderTarget(sdlRenderer, offscreen);
+        SDL_SetRenderDrawColor(sdlRenderer, 0, 0, 0, 0);  // clear with transparent
+        SDL_RenderClear(sdlRenderer);
+
+        SDL_RenderCopy(sdlRenderer, staticOverlayTexture, nullptr, nullptr);
+
+
+        if (showMSpeedSwitch || toonSwitch)
+            UpdateAnimation();
+
+        if (showCoordinatesSwitch)
+        {
+            SDL_RenderCopy(sdlRenderer, texMessage, nullptr, &recMessage);
+            SDL_RenderCopy(sdlRenderer, texMessage2, nullptr, &recMessage2);
+        }
+
+        if (showMSpeedSwitch)
+        {
+            SDL_RenderCopy(sdlRenderer, texMessage3, nullptr, &recMessage3);
+        }
+
+        if (mSpeed && showMSpeedSwitch)
+        {
+            // --- 1. Render the static outer ring ---
+            SDL_SetTextureColorMod(ringTexture, joystickGlowColor.r, joystickGlowColor.g, joystickGlowColor.b);
+            SDL_SetTextureAlphaMod(ringTexture, 255);
+            int texW, texH;
+            SDL_QueryTexture(ringTexture, nullptr, nullptr, &texW, &texH);
+            SDL_Rect destStatic;
+            destStatic.w = texW;
+            destStatic.h = texH;
+            destStatic.x = 288 - texW / 2;
+            destStatic.y = 144 - texH / 2;
+            SDL_RenderCopyEx(sdlRenderer, ringTexture, nullptr, &destStatic, 0.0, nullptr, SDL_FLIP_NONE);
+
+            // --- 2. Render the pulsing (scaling) outer ring on top ---
+            float t = fmod(SDL_GetTicks() * pulseRate, 2.0f);
+            float interp = (t < 1.0f) ? t : (2.0f - t);  // 0->1->0 sawtooth waveform.
+            int extra = (int)(pulseAmplitude * interp);
+            int newRadius = ringOuterRadius + extra;
+            float scaleFactor = (float)newRadius / (float)ringOuterRadius;
+
+            // Compute a blended color between joystickGlowColor and secondGlowColor
+            SDL_Color blendedColor;
+            blendedColor.r = (Uint8)(joystickGlowColor.r * (1 - interp) + secondGlowColor.r * interp);
+            blendedColor.g = (Uint8)(joystickGlowColor.g * (1 - interp) + secondGlowColor.g * interp);
+            blendedColor.b = (Uint8)(joystickGlowColor.b * (1 - interp) + secondGlowColor.b * interp);
+            blendedColor.a = 255;
+
+            SDL_SetTextureColorMod(ringLayerTexture, blendedColor.r, blendedColor.g, blendedColor.b);
+            SDL_SetTextureAlphaMod(ringLayerTexture, blendedColor.a);
+            SDL_QueryTexture(ringLayerTexture, nullptr, nullptr, &texW, &texH);
+            SDL_Rect destPulsing;
+            destPulsing.w = (int)(texW * scaleFactor);
+            destPulsing.h = (int)(texH * scaleFactor);
+            destPulsing.x = 288 - destPulsing.w / 2;
+            destPulsing.y = 144 - destPulsing.h / 2;
+            SDL_RenderCopyEx(sdlRenderer, ringLayerTexture, nullptr, &destPulsing, 0.0, nullptr, SDL_FLIP_NONE);
+
+
+            // Now render the inner ring:
+
+            SDL_SetTextureColorMod(ringInnerLayerTexture, blendedColor.r, blendedColor.g, blendedColor.b);
+            SDL_SetTextureAlphaMod(ringInnerLayerTexture, blendedColor.a);
+            int innerW, innerH;
+            SDL_QueryTexture(ringInnerLayerTexture, nullptr, nullptr, &innerW, &innerH);
+            SDL_Rect destInner;
+            destInner.w = innerW;
+            destInner.h = innerH;
+            destInner.x = 288 - destInner.w / 2;
+            destInner.y = 144 - destInner.h / 2;
+            SDL_RenderCopyEx(sdlRenderer, ringInnerLayerTexture, nullptr, &destInner, 0.0, nullptr, SDL_FLIP_NONE);
+
+            int extraInner = (int)(pulseAmplitude * interp);
+            int newInnerRadius = secondRingOuterRadius + extraInner;
+            float innerScale = (float)newInnerRadius / (float)secondRingOuterRadius;
+
+            SDL_SetTextureColorMod(ringInnerLayerTexture, blendedColor.r, blendedColor.g, blendedColor.b);
+            SDL_SetTextureAlphaMod(ringInnerLayerTexture, blendedColor.a);
+            SDL_QueryTexture(ringInnerLayerTexture, nullptr, nullptr, &texW, &texH);
+            SDL_Rect destInnerPulsing;
+            destInnerPulsing.w = (int)(texW * innerScale);
+            destInnerPulsing.h = (int)(texH * innerScale);
+            destInnerPulsing.x = 288 - destInnerPulsing.w / 2;
+            destInnerPulsing.y = 144 - destInnerPulsing.h / 2;
+            SDL_RenderCopyEx(sdlRenderer, ringInnerLayerTexture, nullptr, &destInnerPulsing, 0.0, nullptr, SDL_FLIP_NONE);
+        }
+        else
+        {
+            // When not in mSpeed mode, render both textures at normal scale without modulation:
+            SDL_SetTextureColorMod(ringLayerTexture, 255, 255, 255);
+            SDL_SetTextureAlphaMod(ringLayerTexture, 255);
+            int texW, texH;
+            SDL_QueryTexture(ringLayerTexture, nullptr, nullptr, &texW, &texH);
+            SDL_Rect dest;
+            dest.w = texW;
+            dest.h = texH;
+            dest.x = 288 - dest.w / 2;
+            dest.y = 144 - dest.h / 2;
+            SDL_RenderCopyEx(sdlRenderer, ringLayerTexture, nullptr, &dest, 0.0, nullptr, SDL_FLIP_NONE);
+
+            // And the inner ring texture:
+            SDL_SetTextureColorMod(ringInnerLayerTexture, 255, 255, 255);
+            SDL_SetTextureAlphaMod(ringInnerLayerTexture, 255);
+            SDL_QueryTexture(ringInnerLayerTexture, nullptr, nullptr, &texW, &texH);
+            dest.w = texW;
+            dest.h = texH;
+            dest.x = 288 - dest.w / 2;
+            dest.y = 144 - dest.h / 2;
+            SDL_RenderCopyEx(sdlRenderer, ringInnerLayerTexture, nullptr, &dest, 0.0, nullptr, SDL_FLIP_NONE);
+
+            // Draw the crosshair annulus over the rings
+            SDL_SetRenderDrawColor(sdlRenderer, firstCrossColor.r, firstCrossColor.g, firstCrossColor.b, firstCrossColor.a);
+            switch (shapeIndex) {
+            case 0: case 2: {
+               //DrawThirdCrosshairAnnulusMirrored(sdlRenderer, 288, 144, ringOuterRadius - 4, ringThickness, firstCrossThickness, firstCrossColor, thirdCrossAngleOffset);
+                break;
+            }
+            case 1: {
+                DrawThirdCrosshairAnnulusMirrored(sdlRenderer, 288, 144, ringOuterRadius, ringThickness, firstCrossThickness, firstCrossColor, thirdCrossAngleOffset);
+                break;
+            }
+            default:
+                break;
+            }
+
+        }
+        
+
+
+
+
+        if (toonSwitch)
+        {
+            if (!showMSpeedSwitch || !mSpeed)
+                SDL_RenderCopy(sdlRenderer, imgBaseToon, nullptr, &recBase);
+            else
+                SDL_RenderCopy(sdlRenderer, imgBaseToonM, nullptr, &recBase);
+
+        }
+
+        int drawX = 288 +  JoyX; 
+        int drawY = 144 - JoyY; 
+        float rad = std::fmin(std::sqrt((float)(JoyX * JoyX + JoyY * JoyY)), 128.0f);
+        float ang = std::atan2((float)JoyY, (float)JoyX);
+        int capX = (int)(rad * std::cos(ang));
+        int capY = (int)(rad * std::sin(ang));
+        int drawCapX = 288 + capX; 
+        int drawCapY = 144 - capY; 
+
+        SDL_Color stickLineColor;
+        stickLineColor.r = stickR;
+        stickLineColor.g = stickG;
+        stickLineColor.b = stickB;
+        stickLineColor.a = 255;
+
+        //SDL_SetRenderDrawColor(sdlRenderer, stickR, stickG, stickB, 255);
+        //SDL_RenderDrawLine(sdlRenderer, 288, 144, drawCapX, drawCapY);
+        DrawThickLineRect(sdlRenderer, 288, 144, drawCapX, drawCapY,3,stickLineColor);
+
+        if (mSpeed && showMSpeedSwitch)
+        {
+            // Draw the small circle on top (if needed)
+            SDL_Color activeCircleColor = joystickGlowColor;
+            activeCircleColor.a = 255;
+            DrawFilledCircle(sdlRenderer, drawCapX, drawCapY, circleSize, activeCircleColor);
+            SDL_Color outlineColor = { 0, 0, 0, 255 };
+            DrawCircleOutline(sdlRenderer, drawCapX, drawCapY, circleSize, outlineColor);
+        }
+        else
+        {
+            DrawFilledCircle(sdlRenderer, drawCapX, drawCapY, circleSize, joystickCircleColor);
+            SDL_Color outlineColor = { 0, 0, 0, 255 };
+            DrawCircleOutline(sdlRenderer, drawCapX, drawCapY, circleSize, outlineColor);
+        }
+
+        if (A) SDL_RenderCopy(sdlRenderer, imgA, nullptr, &recA);
+        if (B) SDL_RenderCopy(sdlRenderer, imgB, nullptr, &recB);
+        if (X) SDL_RenderCopy(sdlRenderer, imgX, nullptr, &recX);
+        if (Y) SDL_RenderCopy(sdlRenderer, imgY, nullptr, &recY);
+        if (L) SDL_RenderCopy(sdlRenderer, imgL, nullptr, &recL);
+        if (R) SDL_RenderCopy(sdlRenderer, imgR, nullptr, &recR);
+        if (LT) SDL_RenderCopy(sdlRenderer, imgLT, nullptr, &recLT);
+        if (RT) SDL_RenderCopy(sdlRenderer, imgRT, nullptr, &recRT);
+        if (pUp) SDL_RenderCopy(sdlRenderer, imgUp, nullptr, &recUp);
+        if (pDown) SDL_RenderCopy(sdlRenderer, imgDown, nullptr, &recDown);
+        if (pLeft) SDL_RenderCopy(sdlRenderer, imgLeft, nullptr, &recLeft);
+        if (pRight) SDL_RenderCopy(sdlRenderer, imgRight, nullptr, &recRight);
+        if (S) SDL_RenderCopy(sdlRenderer, imgS, nullptr, &recS);
+
+        if (SDL_GetTicks() / 100 <= 30)
+            SDL_RenderCopy(sdlRenderer, imgHelp1, nullptr, &recFull);
+
+        // Reset target to default
+        SDL_SetRenderTarget(sdlRenderer, nullptr);
+
+        // Now clear the main renderer with your background color
+        SDL_SetRenderDrawColor(sdlRenderer, bgR, bgG, bgB, 0);
+        SDL_RenderClear(sdlRenderer);
+
+        // Render the off-screen texture on top of the background
+        SDL_RenderCopy(sdlRenderer, offscreen, nullptr, nullptr);
+        SDL_RenderPresent(sdlRenderer);
+
+
+
+        // Render the separate settings window if open.
+        if (dialogMenu.isActive())
+            dialogMenu.render();
+
+        SDL_Delay(16);
+        if (folderIndexLast != folderIndex)
+            reloadImages();
+    }
+
+    saveIndex();
+    saveSettings();
+    cleanUp();
+    SDL_DestroyTexture(offscreen);
+    SDL_DestroyRenderer(sdlRenderer);
+    SDL_DestroyWindow(sdlWindow);
+    IMG_Quit();
+    TTF_Quit();
+    SDL_Quit();
+
+    return 0;
 }
