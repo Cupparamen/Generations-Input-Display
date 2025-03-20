@@ -39,12 +39,16 @@ Gens Input Display renders a dynamic visual overlay that represents various cont
 
 Kyrrone: Original creator of the M/D Speed template
 https://www.youtube.com/@Kyrrone
+
 Starlight: The remaster button prompts were taken from the Remastered GUI Mod
 https://www.youtube.com/@StarlightDX
+
 Khroma: Creating the updated M/D Speed template and testing 100 stick sensitivity mode.
 https://www.youtube.com/@SlavicSnowball
+
 TurtleMan64: Original Sonic Input Display v2.2
 https://github.com/TurtleMan64/SADX-SA2-Input-Display/releases/tag/v2.2
+
 Ranbin: Unleashed Button Set
 https://www.youtube.com/@R_A_N_B_I_N
  
