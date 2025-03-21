@@ -1,4 +1,4 @@
-﻿#include <SDL/SDL_image.h>
+#include <SDL/SDL_image.h>
 #include <SDL/SDL.h>
 #include <SDL/SDL_syswm.h>
 #include <SDL/SDL_hints.h>
@@ -72,7 +72,7 @@ int secondCrossLength = 12;  // adjust as desired
 
 //Global for shape
 int shapeIndex = 0;
-int shapeIndexMaximum = 3;
+int shapeIndexMaximum = 4;
 
 float effectiveRadius = 0;
 
@@ -573,14 +573,14 @@ void updateRingTextures() {
     int centerX = 288;
     int centerY = 144;
 
-    if (shapeIndex == 0 || shapeIndex == 1) {
-        // Circular case: use your existing createRingTexture function.
+    if (shapeIndex == 0 || shapeIndex == 1 || shapeIndex == 4) {
+        // Circular case (including our new shape)
         ringTexture = createRingTexture(centerX, centerY, ringOuterRadius, ringThickness, ringColor, ringOutlineColor);
         ringLayerTexture = createRingTexture(centerX, centerY, ringOuterRadius, ringThickness, ringColor, ringOutlineColor);
         ringInnerLayerTexture = createRingTexture(centerX, centerY, secondRingOuterRadius, secondRingThickness, secondRingColor, secondRingOutlineColor);
     }
     else if (shapeIndex == 2) {
-        // Octagon case: adjust parameters according to your older source.
+        // Octagon case remains the same.
         ringTexture = createOctagonTexture(centerX, centerY, ringOuterRadius - 4, ringThickness - 4, ringColor);
         ringLayerTexture = createOctagonTexture(centerX, centerY, ringOuterRadius - 4, ringThickness - 4, ringColor);
         ringInnerLayerTexture = createOctagonTexture(centerX, centerY, secondRingOuterRadius - 4, secondRingThickness - 1, secondRingColor);
@@ -1285,6 +1285,18 @@ void renderStaticOverlay()
                 DrawThickLine(sdlRenderer, centerX, centerY - secondCrossLength, centerX, centerY + secondCrossLength, secondCrossThickness);
                 }
                   break;
+            case 4:
+            {
+
+                // Draw the second crosshair (simple plus sign) as in the circular case:
+                SDL_SetRenderDrawColor(sdlRenderer, secondCrossColor.r, secondCrossColor.g, secondCrossColor.b, secondCrossColor.a);
+                DrawThickLine(sdlRenderer, centerX - secondCrossLength, centerY,
+                    centerX + secondCrossLength, centerY, secondCrossThickness);
+                DrawThickLine(sdlRenderer, centerX, centerY - secondCrossLength,
+                    centerX, centerY + secondCrossLength, secondCrossThickness);
+                break;
+            }
+       
     // Add additional cases if needed.
     }
 
