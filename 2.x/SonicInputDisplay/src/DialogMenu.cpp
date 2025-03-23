@@ -16,6 +16,12 @@ extern int circleSize;
 extern SDL_Color joystickCircleColor;
 extern bool staticOverlayDirty;
 extern SDL_Color ringFill;
+extern int buttonSetLayoutIndex;
+extern bool staticButtonOverlaySwitch;
+extern int buttonSetIndex;
+extern int toonSetIndex;
+extern std::vector<std::string> toonSetFolders;
+extern std::vector<std::string> buttonSetFolders;
 
 extern float pulseRate;
 extern int pulseAmplitude;
@@ -23,6 +29,10 @@ extern int glowMinAlpha;
 extern SDL_Color joystickGlowColor;
 extern SDL_Color secondGlowColor; // second M-Speed glow color
 extern void updateRingTextures();
+extern void updateButtonSetLayout();
+extern void updateUIBlockLayout();
+extern void loadToonImages();
+extern void loadButtonImages();
 
 
 extern int shapeIndex;
@@ -77,9 +87,27 @@ std::string formatFloat(float value, int decimals) {
 int clampIntValue(const std::string& key, int value) {
     // For booleans: only 0 or 1.
     if (key == "showCoordinatesSwitch" || key == "showMSpeedSwitch" ||
-        key == "toonSwitch" || key == "dPadSwitch") {
+        key == "toonSwitch" || key == "dPadSwitch" || key == "staticButtonOverlaySwitch") {
         if (value < 0) value = 0;
         if (value > 1) value = 1;
+        return value;
+    }
+    // For buttonSetLayoutIndex: limit to 0-4.
+    else if (key == "buttonSetLayoutIndex") {
+        if (value < 0) value = 0;
+        if (value > 4) value = 4;
+        return value;
+    }
+    // For buttonSetIndex: limit to 0-4.
+    else if (key == "buttonSetIndex") {
+        if (value < 0) value = buttonSetFolders.size() - 1;
+        if (value > buttonSetFolders.size() - 1) value = 0;
+        return value;
+    }
+    // For toonSetIndex: (if you want to limit it to 0-4, for example)
+    else if (key == "toonSetIndex") {
+        if (value < 0) value = toonSetFolders.size() - 1;
+        if (value > toonSetFolders.size() - 1) value = 0; // or use  if accessible
         return value;
     }
     // For color controls (keys ending with R, G, or B).
@@ -153,7 +181,7 @@ SDL_Color DialogMenu::getDynamicColorForField(const std::string& key) {
 DialogMenu::DialogMenu()
     : active(false), selectedField(0), font(nullptr), dialogWindow(nullptr), dialogRenderer(nullptr)
 {
-    optionsRect = { 10, 10, 780, 420 };
+    optionsRect = { 10, 10, 780, 450 };
     bgColor = { 50, 50, 50, 230 };
     borderColor = { 200, 200, 200, 255 };
 }
@@ -218,6 +246,10 @@ void DialogMenu::refreshFields() {
     fields.push_back({ "toonSwitch", "(F3) Show / Hide Toon", SET_BOOL, (toonSwitch ? "1" : "0") });
     fields.push_back({ "dPadSwitch", "(F4) Map D-Pad to Stick", SET_BOOL, (dPadSwitch ? "1" : "0") });
     fields.push_back({ "shapeIndex", "(F5) Ring Shape", SET_INT, std::to_string(shapeIndex) });
+    fields.push_back({ "staticButtonOverlaySwitch", "(F6) Button Shadow", SET_BOOL, (staticButtonOverlaySwitch ? "1" : "0") });
+    fields.push_back({ "buttonSetLayoutIndex", "(F7) Button Layout", SET_INT, std::to_string(buttonSetLayoutIndex) });
+    fields.push_back({ "buttonSetIndex", "Button Set", SET_INT, std::to_string(buttonSetIndex) });
+    fields.push_back({ "toonSetIndex", "Toon Set Index", SET_INT, std::to_string(toonSetIndex) });
     fields.push_back({ "bgR", "Background Color (R)", SET_INT, std::to_string(bgR) });
     fields.push_back({ "bgG", "Background Color (G)", SET_INT, std::to_string(bgG) });
     fields.push_back({ "bgB", "Background Color (B)", SET_INT, std::to_string(bgB) });
@@ -300,8 +332,17 @@ void DialogMenu::handleEvent(const SDL_Event& e) {
         }
     }
     if (e.type == SDL_MOUSEBUTTONDOWN) {
+
         int mx = e.button.x, my = e.button.y;
         SDL_Rect applyRect = { optionsRect.x, optionsRect.y + optionsRect.h + 10, optionsRect.w, 30 };
+        for (size_t i = 0; i < fieldRects.size(); i++) {
+            SDL_Rect r = fieldRects[i];
+            if (mx >= r.x && mx < (r.x + r.w) &&
+                my >= r.y && my < (r.y + r.h)) {
+                selectedField = i; // Set the clicked field as selected.
+                break;
+            }
+        }
         if (mx >= applyRect.x && mx < applyRect.x + applyRect.w &&
             my >= applyRect.y && my < applyRect.y + applyRect.h) {
             applyChanges();
@@ -520,6 +561,9 @@ void DialogMenu::render() {
     if (!active || !dialogRenderer)
         return;
 
+    // Clear stored field rectangles for hit-testing.
+    fieldRects.clear();
+
     // Clear and fill background.
     SDL_SetRenderDrawColor(dialogRenderer, bgColor.r, bgColor.g, bgColor.b, bgColor.a);
     SDL_RenderClear(dialogRenderer);
@@ -554,18 +598,16 @@ void DialogMenu::render() {
     }
 
     // --- Step 2: Partition groups into columns, without splitting a group ---
-    const int capacity = 16; // max number of controls per column
+    const int capacity = 14; // max number of controls per column
     std::vector<std::vector<std::vector<SettingField>>> colGroups; // each column is a vector of groups
     std::vector<std::vector<SettingField>> currColGroups;
     int currCount = 0;
     for (auto& grp : groups) {
-        // If current column is empty or the entire group fits:
         if (currCount == 0 || (currCount + (int)grp.size() <= capacity)) {
             currColGroups.push_back(grp);
             currCount += grp.size();
         }
         else {
-            // Start new column
             colGroups.push_back(currColGroups);
             currColGroups.clear();
             currColGroups.push_back(grp);
@@ -594,6 +636,10 @@ void DialogMenu::render() {
                     colWidth - 10,
                     20  // fixed field height
                 };
+
+                // **Store the fieldRect for hit testing:**
+                fieldRects.push_back(fieldRect);
+
                 // Compute the global index for selection:
                 int globalIndex = 0;
                 for (int c = 0; c < col; c++) {
@@ -634,6 +680,7 @@ void DialogMenu::render() {
 
     SDL_RenderPresent(dialogRenderer);
 }
+
 
 
 
@@ -764,10 +811,23 @@ bool DialogMenu::applyChanges() {
             CornerMin = parseInt(field.valueStr, CornerMin);
         else if (field.key == "CornerMax")
             CornerMax = parseInt(field.valueStr, CornerMax);
+        else if (field.key == "buttonSetLayoutIndex")
+            buttonSetLayoutIndex = parseInt(field.valueStr, buttonSetLayoutIndex);
+        else if (field.key == "staticButtonOverlaySwitch")
+            staticButtonOverlaySwitch = parseBool(field.valueStr, staticButtonOverlaySwitch);
+        else if (field.key == "buttonSetIndex")
+            buttonSetIndex = clampIntValue("buttonSetIndex", parseInt(field.valueStr, buttonSetIndex));
+        else if (field.key == "toonSetIndex")
+            toonSetIndex = clampIntValue("toonSetIndex", parseInt(field.valueStr, toonSetIndex));
+
     }
     staticOverlayDirty = true;
 
     // IMPORTANT: Update the ring textures in real time.
+    loadToonImages();
+    loadButtonImages();
+    updateButtonSetLayout();
+    updateUIBlockLayout();
     updateRingTextures();
 
     return true;
