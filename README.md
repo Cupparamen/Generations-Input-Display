@@ -25,8 +25,10 @@ Gens Input Display renders a dynamic visual overlay that represents various cont
   - *Note:* Custom toon animations must have 8 frames and match the dimensions of the `toon.png` and `toonM.png` files in each folder under `./toons/`.
 - **F3:** Toggle M-Speed light mode, lighting up the ring and pointer when the joystick’s X and Y values match the M-Speed equation. (Set stick sensitivity to 50 in-game.)
 - **F4:** Toggle D-Pad Mode to allow D-Pad inputs to affect the ring.
-- **F5:** Cycle through available toon sets in the `./toons/` folder.
+- **F5:** Cycle through available ring shapes.
 - **Left/Right Arrow Keys:** Switch between button sets located in the `./sets/` folder. (New sets can be added by creating a folder with the same filenames for the button images.)
+- **Up/Down Arrow Keys:** Cycle through available Toons
+- **m** opens the menu
 
 ### Standard Features
 - **Custom Button Sets:** Easily switch between button sets by placing images with the same filenames (e.g., `buttA.png`, `buttB.png`, etc.) in a new folder under `./sets/`.
