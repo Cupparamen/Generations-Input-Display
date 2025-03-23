@@ -51,7 +51,7 @@ private:
     bool active;
     int selectedField; // The index (0..N-1) of the currently selected control.
     std::vector<SettingField> fields; // All controls in the desired order.
-
+    std::vector<SDL_Rect> fieldRects;
     // Returns the dynamic color for a given field key.
     SDL_Color getDynamicColorForField(const std::string& key);
 
