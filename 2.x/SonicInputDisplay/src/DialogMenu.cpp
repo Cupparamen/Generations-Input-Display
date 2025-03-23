@@ -1,4 +1,4 @@
-﻿#include "DialogMenu.h"
+#include "DialogMenu.h"
 #include <SDL/SDL.h>
 #include <SDL/SDL_ttf.h>
 #include <string>
@@ -15,6 +15,7 @@ extern bool dPadSwitch;
 extern int circleSize;
 extern SDL_Color joystickCircleColor;
 extern bool staticOverlayDirty;
+extern SDL_Color ringFill;
 
 extern float pulseRate;
 extern int pulseAmplitude;
@@ -90,7 +91,7 @@ int clampIntValue(const std::string& key, int value) {
         key == "secondRingColorR" || key == "secondRingColorG" || key == "secondRingColorB" ||
         key == "joystickGlowColorR" || key == "joystickGlowColorG" || key == "joystickGlowColorB" ||
         key == "secondGlowColorR" || key == "secondGlowColorG" || key == "secondGlowColorB" ||
-        key == "bgR" || key == "bgG" || key == "bgB") {
+        key == "bgR" || key == "bgG" || key == "bgB" || key == "fillColorR" || key == "fillColorG" || key == "fillColorB") {
         if (value < 0) value = 0;
         if (value > 255) value = 255;
         return value;
@@ -216,10 +217,18 @@ void DialogMenu::refreshFields() {
     fields.push_back({ "showMSpeedSwitch", "(F2) M Speed Mode", SET_BOOL, (showMSpeedSwitch ? "1" : "0") });
     fields.push_back({ "toonSwitch", "(F3) Show / Hide Toon", SET_BOOL, (toonSwitch ? "1" : "0") });
     fields.push_back({ "dPadSwitch", "(F4) Map D-Pad to Stick", SET_BOOL, (dPadSwitch ? "1" : "0") });
+    fields.push_back({ "shapeIndex", "(F5) Ring Shape", SET_INT, std::to_string(shapeIndex) });
+    fields.push_back({ "bgR", "Background Color (R)", SET_INT, std::to_string(bgR) });
+    fields.push_back({ "bgG", "Background Color (G)", SET_INT, std::to_string(bgG) });
+    fields.push_back({ "bgB", "Background Color (B)", SET_INT, std::to_string(bgB) });
     // Group 2: Joystick / Reticle Settings
     fields.push_back({ "stickR", "Joystick Color (R)", SET_INT, std::to_string(stickR) });
     fields.push_back({ "stickG", "Joystick Color (G)", SET_INT, std::to_string(stickG) });
     fields.push_back({ "stickB", "Joystick Color (B)", SET_INT, std::to_string(stickB) });
+    // Add new fields for the filled circle color (fillColor)
+    fields.push_back({ "fillColorR", "Fill Color (R)", SET_INT, std::to_string(ringFill.r) });
+    fields.push_back({ "fillColorG", "Fill Color (G)", SET_INT, std::to_string(ringFill.g) });
+    fields.push_back({ "fillColorB", "Fill Color (B)", SET_INT, std::to_string(ringFill.b) });
     fields.push_back({ "circleSize", "Reticle Size", SET_INT, std::to_string(circleSize) });
     fields.push_back({ "joystickCircleColorR", "Reticle Color (R)", SET_INT, std::to_string(joystickCircleColor.r) });
     fields.push_back({ "joystickCircleColorG", "Reticle Color (G)", SET_INT, std::to_string(joystickCircleColor.g) });
@@ -231,8 +240,9 @@ void DialogMenu::refreshFields() {
     fields.push_back({ "firstCrossColorR", "Markings Color (R)", SET_INT, std::to_string(firstCrossColor.r) });
     fields.push_back({ "firstCrossColorG", "Markings Color (G)", SET_INT, std::to_string(firstCrossColor.g) });
     fields.push_back({ "firstCrossColorB", "Markings Color (B)", SET_INT, std::to_string(firstCrossColor.b) });
+
     // Group 4: Ring Settings
-    fields.push_back({ "shapeIndex", "(F5) Ring Shape", SET_INT, std::to_string(shapeIndex) });
+
     fields.push_back({ "ringOuterRadius", "Large Ring Radius", SET_INT, std::to_string(ringOuterRadius) });
     fields.push_back({ "ringThickness", "Large Ring Thickness", SET_INT, std::to_string(ringThickness) });
     fields.push_back({ "ringColorR", "Large Ring Color (R)", SET_INT, std::to_string(ringColor.r) });
@@ -254,9 +264,7 @@ void DialogMenu::refreshFields() {
     fields.push_back({ "secondGlowColorG", "M Speed Glow 2 (G)", SET_INT, std::to_string(secondGlowColor.g) });
     fields.push_back({ "secondGlowColorB", "M Speed Glow 2 (B)", SET_INT, std::to_string(secondGlowColor.b) });
     // Group 6: Background Color
-    fields.push_back({ "bgR", "Background Color (R)", SET_INT, std::to_string(bgR) });
-    fields.push_back({ "bgG", "Background Color (G)", SET_INT, std::to_string(bgG) });
-    fields.push_back({ "bgB", "Background Color (B)", SET_INT, std::to_string(bgB) });
+
     // Group 7: Directional Thresholds & Corner Settings
     fields.push_back({ "NorthYFloor", "North - Y Floor", SET_FLOAT, formatFloat(NorthYFloor, 2) });
     fields.push_back({ "NorthYCeil", "North - Y Ceiling", SET_FLOAT, formatFloat(NorthYCeil, 2) });
@@ -276,6 +284,7 @@ void DialogMenu::refreshFields() {
     fields.push_back({ "SouthXCeil", "South - X Ceiling", SET_FLOAT, formatFloat(SouthXCeil, 2) });
     fields.push_back({ "CornerMin", "Corner Minimum", SET_INT, std::to_string(CornerMin) });
     fields.push_back({ "CornerMax", "Corner Maximum", SET_INT, std::to_string(CornerMax) });
+
 }
 
 void DialogMenu::handleEvent(const SDL_Event& e) {
@@ -664,6 +673,12 @@ bool DialogMenu::applyChanges() {
             firstCrossColor.g = (Uint8)parseInt(field.valueStr, firstCrossColor.g);
         else if (field.key == "firstCrossColorB")
             firstCrossColor.b = (Uint8)parseInt(field.valueStr, firstCrossColor.b);
+        else if (field.key == "fillColorR")
+            ringFill.r = (Uint8)parseInt(field.valueStr, ringFill.r);
+        else if (field.key == "fillColorG")
+            ringFill.g = (Uint8)parseInt(field.valueStr, ringFill.g);
+        else if (field.key == "fillColorB")
+            ringFill.b = (Uint8)parseInt(field.valueStr, ringFill.b);
         else if (field.key == "shapeIndex")
             shapeIndex = parseInt(field.valueStr, shapeIndex);
         else if (field.key == "ringOuterRadius")
