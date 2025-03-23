@@ -74,6 +74,11 @@ int secondCrossLength = 12;  // adjust as desired
 int shapeIndex = 0;
 int shapeIndexMaximum = 5;
 
+//Button Set Globals
+int buttonSetLayoutIndex = 0;
+int blockOffsetX = 0;  // Default: no offset.
+int blockOffsetY = 0;  // You can leave Y as 0 if you only need horizontal shifts.
+
 float effectiveRadius = 0;
 
 // Global SDL objects and textures
@@ -114,7 +119,8 @@ SDL_Texture* ringInnerLayerTextureWhite = nullptr;
 SDL_Texture* staticOverlayTexture = nullptr;
 bool staticOverlayDirty = true; // Mark as dirty initially
 
-
+bool staticButtonOverlaySwitch = 0;
+int staticButtonOpacity = 27;
 
 
 SDL_Surface* surfaceMessage = nullptr;
@@ -160,22 +166,21 @@ SDL_Rect recX = { 12, 144, 64, 64 };
 SDL_Rect recA = { 84, 144, 64, 64 };
 SDL_Rect recB = { 84, 72, 64, 64 };
 SDL_Rect recY = { 12, 72, 64, 64 };
-SDL_Rect recL = { 18, 32, 48, 32 };
-SDL_Rect recR = { 94, 32, 48, 32 };
-SDL_Rect recLT = { 18, 216, 48, 32 };
-SDL_Rect recRT = { 94, 216, 48, 32 };
+SDL_Rect recL = { 16, 32, 48, 32 };
+SDL_Rect recR = { 96, 32, 48, 32 };
+SDL_Rect recLT = { 16, 216, 48, 32 };
+SDL_Rect recRT = { 96, 216, 48, 32 };
 SDL_Rect recS = { 376, 10, 32, 32 };
-SDL_Rect recLeft = { 18, 252, 32, 32 };
-SDL_Rect recDown = { 80, 252, 32, 32 };
-SDL_Rect recUp = { 52, 252, 32, 32 };
-SDL_Rect recRight = { 114, 252, 32, 32 };
+SDL_Rect recLeft = { 16, 252, 32, 32 };
+SDL_Rect recDown = { 82, 252, 32, 32 };
+SDL_Rect recUp = { 49, 252, 32, 32 };
+SDL_Rect recRight = { 115, 252, 32, 32 };
 SDL_Rect recSS = { 344, 268, 48, 32 };
 SDL_Rect recMSM = { 388, 268, 32, 32 };
 SDL_Rect recFull = { 0, 0, 420, 300 };
 SDL_Rect recMessage = { 184, 280, 0, 20 };
 SDL_Rect recMessage2 = { 268, 280, 0, 20 };
 SDL_Rect recMessage3 = { 380, 278, 34, 20 };
-
 SDL_Color ringFill = { 163, 163, 163, 255 };
 
 SDL_Color White = { 255, 255, 255, 255 };
@@ -638,8 +643,8 @@ void updateRingTextures() {
         ringInnerLayerTextureWhite = nullptr;
     }
 
-    int centerX = 288;
-    int centerY = 144;
+    int centerX = 288 + blockOffsetX;
+    int centerY = 144 + blockOffsetY;
 
     if (shapeIndex == 0 || shapeIndex == 1 || shapeIndex == 4 || shapeIndex == 5) {
         // Circular case (including our new modes)
@@ -664,7 +669,100 @@ void updateRingTextures() {
         ringInnerLayerTextureWhite = createOctagonTexture(centerX, centerY, secondRingOuterRadius - 4, secondRingThickness - 1, white);
     }
 }
+void updateButtonSetLayout() {
+    // Layout 0: default positions (existing layout)
+    if (buttonSetLayoutIndex == 0) {
+        recA = { 84, 144, 64, 64 };
+        recB = { 84, 72, 64, 64 };
+        recX = { 12, 144, 64, 64 };
+        recY = { 12, 72, 64, 64 };
+        recL = { 18, 32, 48, 32 };
+        recR = { 94, 32, 48, 32 };
+        recLT = { 18, 216, 48, 32 };
+        recRT = { 94, 216, 48, 32 };
+        recUp = { 49, 252, 32, 32 };
+        recDown = { 82, 252, 32, 32 };
+        recLeft = { 16, 252, 32, 32 };
+        recRight = { 115, 252, 32, 32 };
+        // recS (the start button) remains unchanged:
+        // recS = {376, 10, 32, 32};
+    }
+    // Layout 1: render the button set to the right of the ring (and start button)
+    else if (buttonSetLayoutIndex == 1) {
+        // For this layout, we manually assign positions that place the buttons
+        // on the right side of the ring centered at (288,144). Adjust these values
+        // as needed for your design.
+        recX = { 276, 144, 64, 64 };
+        recY = { 276, 72, 64, 64 };
+        recA = { 348, 144, 64, 64 };
+        recB = { 348, 72, 64, 64 };
+        recR = { 358, 32, 48, 32 };
+        recL = { 282, 32, 48, 32 };
+        recRT = { 358, 216, 48, 32 };
+        recLT = { 282, 216, 48, 32 };
+        recDown = { 343, 252, 32, 32 };
+        recUp = { 310, 252, 32, 32 };
+        recRight = { 376, 252, 32, 32 };
+        recLeft = { 277, 252, 32, 32 };
+        // Again, recS remains unchanged.
+    }
+    // Layout 2: ring and start button remain in the center.
+    // The left group contains LB, Y, X, LT, Dpad Left, and Dpad Down.
+    // The right group contains the remaining buttons.
+    else if (buttonSetLayoutIndex == 2) {
+        // Left group:
+        recX = { 12, 144, 64, 64 };
+        recY = { 12, 72, 64, 64 };
+        recL = { 18, 32, 48, 32 };
+        recLT = { 18, 216, 48, 32 };
+        recUp = { 49, 252, 32, 32 };
+        recLeft = { 16, 252, 32, 32 };
 
+
+        // Right group:
+        recA = { 348, 144, 64, 64 };
+        recB = { 348, 72, 64, 64 };
+        recR = { 358, 32, 48, 32 };
+        recRT = { 358, 216, 48, 32 };
+        recDown = { 343, 252, 32, 32 };
+        recRight = { 376, 252, 32, 32 };
+        // recS still remains at {376,10,32,32}.
+    }
+    // Layout 3: ring and start button on the left
+    // Buttons in diamond shape.
+    else if (buttonSetLayoutIndex == 3) {
+        recX = { 267, 98, 64, 64 };  // Left button (X)
+        recY = { 311, 50, 64, 64 };  // Top button (Y)
+        recA = { 311, 146, 64, 64 }; // Bottom button (A)
+        recB = { 355, 98, 64, 64 };  // Right button (B)
+        recR = { 360, 18, 48, 32 };
+        recL = { 280, 18, 48, 32 };
+        recRT = { 358, 216, 48, 32 };
+        recLT = { 282, 216, 48, 32 };
+        recDown = { 343, 252, 32, 32 };
+        recUp = { 310, 252, 32, 32 };
+        recRight = { 376, 252, 32, 32 };
+        recLeft = { 277, 252, 32, 32 };
+        // recS still remains at {376,10,32,32}.
+    }
+    // Layout 4: ring and start button on the right
+    // Buttons in diamond shape.
+    else if (buttonSetLayoutIndex == 4) {
+        recX = { 3,  98, 64, 64 };  // Left button (X) in diamond
+        recY = { 47,  50, 64, 64 };   // Top button (Y)
+        recA = { 47, 146, 64, 64 };   // Bottom button (A)
+        recB = { 91,  98, 64, 64 };   // Right button (B)
+        recR = { 96,  18, 48, 32 };
+        recL = { 16,  18, 48, 32 };
+        recRT = { 94, 216, 48, 32 };
+        recLT = { 18, 216, 48, 32 };
+        recDown = { 79, 252, 32, 32 };
+        recUp = { 46, 252, 32, 32 };
+        recRight = { 112, 252, 32, 32 };
+        recLeft = { 13, 252, 32, 32 };
+        // recS (the start button) remains unchanged.
+    }
+}
 
 
 
@@ -785,8 +883,6 @@ void loadToonImages()
         toonMFrames[i] = IMG_LoadTexture(sdlRenderer, toonMPath.c_str());
     }
 }
-
-
 void loadImages()
 {
     loadButtonImages();
@@ -802,7 +898,6 @@ void loadImages()
     }
 
 }
-
 void reloadImages()
 {
 
@@ -825,7 +920,6 @@ void reloadImages()
     loadButtonImages();
     loadToonImages();
 }
-
 void cleanUp()
 {
     if (imgBaseToon != nullptr) { SDL_DestroyTexture(imgBaseToon); imgBaseToon = nullptr; }
@@ -852,7 +946,6 @@ void cleanUp()
     if (staticOverlayTexture != nullptr) { SDL_DestroyTexture(staticOverlayTexture); staticOverlayTexture = nullptr; }
 
 }
-
 void loadSettings()
 {
     // Set default values
@@ -1063,6 +1156,12 @@ void loadSettings()
             ringFill.g = (Uint8)std::stoi(value);
         else if (key == "fillB")
             ringFill.b = (Uint8)std::stoi(value);
+        else if (key == "staticButtonOverlaySwitch")
+            staticButtonOverlaySwitch = (std::stoi(value) == 1);
+        else if (key == "staticButtonOpacity")
+            staticButtonOpacity = std::stoi(value);
+        else if (key == "buttonSetLayoutIndex")
+            buttonSetLayoutIndex = std::stoi(value);
     }
 
 }
@@ -1147,6 +1246,9 @@ void saveSettings()
         file << "fillR=" << (int)ringFill.r << "\n";
         file << "fillG=" << (int)ringFill.g << "\n";
         file << "fillB=" << (int)ringFill.b << "\n";
+        file << "staticButtonOverlaySwitch=" << (staticButtonOverlaySwitch ? "1" : "0") << "\n";
+        file << "staticButtonOpacity=" << staticButtonOpacity << "\n";
+        file << "buttonSetLayoutIndex=" << buttonSetLayoutIndex << "\n";
         file.close();
     }
 }
@@ -1303,6 +1405,45 @@ void saveIndex()
     fileInd << std::to_string(folderIndex);
     fileInd.close();
 }
+void updateUIBlockLayout() {
+    // Update the offset based on the layout index.
+    // (The values below are suggestions; adjust them to your desired look.)
+    if (buttonSetLayoutIndex == 0 || buttonSetLayoutIndex == 4) {
+        // Default: ring stays at (288,144) as before.
+        blockOffsetX = 0;
+    }
+    else if (buttonSetLayoutIndex == 1 || buttonSetLayoutIndex == 3) {
+        // Move the entire UI block to the left.
+        // For instance, if you want the ring center to shift to about 150 on X:
+        blockOffsetX = 132 - 288;  // e.g. -138
+    }
+    else if (buttonSetLayoutIndex == 2) {
+        // Center the ring and S button in the window.
+        // With a window width of 420, the horizontal center is 210.
+        blockOffsetX = 212 - 288;  // e.g. -78
+    }
+    // If you ever need to adjust Y, update blockOffsetY here (for now we keep it 0).
+
+    // Also update any dependent SDL_Rects.
+    // For example, recBase (the rectangle for your toon animation) is originally defined as:
+    // {152, 8, 272, 272} with the ring center at 288.
+    // We calculate the offset from the ring center (288,144) to recBase.
+    int baseOffsetX = 152 - 288; // e.g. -136
+    int baseOffsetY = 8 - 144;   // e.g. -136
+    recBase.x = (288 + blockOffsetX) + baseOffsetX;
+    recBase.y = (144 + blockOffsetY) + baseOffsetY;
+    // Similarly, update your coordinate text rectangles.
+    // For instance, if recMessage was originally {184, 280, 0, 20},
+    // then update its x position as:
+    recMessage.x = 184 + blockOffsetX;
+    recMessage2.x = 268 + blockOffsetX;
+    recMessage3.x = 380 + blockOffsetX;
+    // (Adjust these numbers as needed.)
+    int s_offsetX = 376 - 288;  // 88
+    int s_offsetY = 10 - 144;   // -134
+    recS.x = (288 + blockOffsetX) + s_offsetX;
+    recS.y = (144 + blockOffsetY) + s_offsetY;
+}
 void renderStaticOverlay()
 {
     // Set static overlay as the target.
@@ -1311,8 +1452,8 @@ void renderStaticOverlay()
     SDL_SetRenderDrawColor(sdlRenderer, 0, 0, 0, 0);
     SDL_RenderClear(sdlRenderer);
 
-    int centerX = 288;
-    int centerY = 144;
+    int centerX = 288 + blockOffsetX;
+    int centerY = 144 + blockOffsetY;
     int firstCrossLength = secondRingOuterRadius + 4;  // Based on your current code
 
     switch (shapeIndex) {
@@ -1666,10 +1807,12 @@ int main(int argc, char* argv[])
 
 
     loadSettings();
+    updateButtonSetLayout();
+    updateUIBlockLayout();
 
-    ringTexture = createRingTexture(288, 144, ringOuterRadius, ringThickness, ringColor, ringOutlineColor);
-    ringLayerTexture = createRingTexture(288, 144, ringOuterRadius, ringThickness, ringColor, ringOutlineColor);
-    ringInnerLayerTexture = createRingTexture(288, 144, secondRingOuterRadius, secondRingThickness, secondRingColor, secondRingOutlineColor);
+    ringTexture = createRingTexture(288 + blockOffsetX, 144 + blockOffsetY, ringOuterRadius, ringThickness, ringColor, ringOutlineColor);
+    ringLayerTexture = createRingTexture(288 + blockOffsetX, 144 + blockOffsetY, ringOuterRadius, ringThickness, ringColor, ringOutlineColor);
+    ringInnerLayerTexture = createRingTexture(288 + blockOffsetX , 144 + blockOffsetY, secondRingOuterRadius, secondRingThickness, secondRingColor, secondRingOutlineColor);
     updateRingTextures();
 
     CornerMinN = (CornerMin * -1);
@@ -1773,6 +1916,20 @@ int main(int argc, char* argv[])
                         staticOverlayDirty = true;
 
                     }
+                    if (keyEv->keysym.sym == SDLK_F6) {
+                        staticButtonOverlaySwitch = !staticButtonOverlaySwitch;
+                        // Mark the static overlay as dirty so it gets redrawn with the new button view.
+                        staticOverlayDirty = true;
+                    }
+                    if (keyEv->keysym.sym == SDLK_F7) {
+                        // Cycle through the 3 layouts: 0, 1, 2.
+                        buttonSetLayoutIndex = (buttonSetLayoutIndex + 1) % 5;
+                        updateButtonSetLayout();
+                        updateUIBlockLayout();
+                        // Mark the static overlay as dirty if your buttons are rendered
+                        // into that off-screen texture.
+                        staticOverlayDirty = true;
+                    }
                     // h key opens the dialog menu.
                     if (keyEv->keysym.sym == SDLK_m)
                     {
@@ -1805,6 +1962,52 @@ int main(int argc, char* argv[])
 
         if (showMSpeedSwitch || toonSwitch)
             UpdateAnimation();
+        if (staticButtonOverlaySwitch) {
+            // Set the alpha mod for each button texture.
+            SDL_SetTextureAlphaMod(imgA, staticButtonOpacity);
+            SDL_SetTextureAlphaMod(imgB, staticButtonOpacity);
+            SDL_SetTextureAlphaMod(imgX, staticButtonOpacity);
+            SDL_SetTextureAlphaMod(imgY, staticButtonOpacity);
+            SDL_SetTextureAlphaMod(imgL, staticButtonOpacity);
+            SDL_SetTextureAlphaMod(imgR, staticButtonOpacity);
+            SDL_SetTextureAlphaMod(imgLT, staticButtonOpacity);
+            SDL_SetTextureAlphaMod(imgRT, staticButtonOpacity);
+            SDL_SetTextureAlphaMod(imgS, staticButtonOpacity);
+            SDL_SetTextureAlphaMod(imgUp, staticButtonOpacity);
+            SDL_SetTextureAlphaMod(imgDown, staticButtonOpacity);
+            SDL_SetTextureAlphaMod(imgLeft, staticButtonOpacity);
+            SDL_SetTextureAlphaMod(imgRight, staticButtonOpacity);
+
+            // Render the button textures in their designated positions.
+            SDL_RenderCopy(sdlRenderer, imgA, nullptr, &recA);
+            SDL_RenderCopy(sdlRenderer, imgB, nullptr, &recB);
+            SDL_RenderCopy(sdlRenderer, imgX, nullptr, &recX);
+            SDL_RenderCopy(sdlRenderer, imgY, nullptr, &recY);
+            SDL_RenderCopy(sdlRenderer, imgL, nullptr, &recL);
+            SDL_RenderCopy(sdlRenderer, imgR, nullptr, &recR);
+            SDL_RenderCopy(sdlRenderer, imgLT, nullptr, &recLT);
+            SDL_RenderCopy(sdlRenderer, imgRT, nullptr, &recRT);
+            SDL_RenderCopy(sdlRenderer, imgS, nullptr, &recS);
+            SDL_RenderCopy(sdlRenderer, imgUp, nullptr, &recUp);
+            SDL_RenderCopy(sdlRenderer, imgDown, nullptr, &recDown);
+            SDL_RenderCopy(sdlRenderer, imgLeft, nullptr, &recLeft);
+            SDL_RenderCopy(sdlRenderer, imgRight, nullptr, &recRight);
+
+            // Reset to full opacity for dynamic drawing:
+            SDL_SetTextureAlphaMod(imgA, 255);
+            SDL_SetTextureAlphaMod(imgB, 255);
+            SDL_SetTextureAlphaMod(imgX, 255);
+            SDL_SetTextureAlphaMod(imgY, 255);
+            SDL_SetTextureAlphaMod(imgL, 255);
+            SDL_SetTextureAlphaMod(imgR, 255);
+            SDL_SetTextureAlphaMod(imgLT, 255);
+            SDL_SetTextureAlphaMod(imgRT, 255);
+            SDL_SetTextureAlphaMod(imgS, 255);
+            SDL_SetTextureAlphaMod(imgUp, 255);
+            SDL_SetTextureAlphaMod(imgDown, 255);
+            SDL_SetTextureAlphaMod(imgLeft, 255);
+            SDL_SetTextureAlphaMod(imgRight, 255);
+        }
 
         if (showCoordinatesSwitch)
         {
@@ -1824,7 +2027,7 @@ int main(int argc, char* argv[])
             SDL_SetTextureAlphaMod(ringTexture, 255);
             int texW, texH;
             SDL_QueryTexture(ringTexture, nullptr, nullptr, &texW, &texH);
-            SDL_Rect destStatic = { 288 - texW / 2, 144 - texH / 2, texW, texH };
+            SDL_Rect destStatic = { (288 + blockOffsetX) - texW / 2, (144 + blockOffsetY) - texH / 2, texW, texH };
             SDL_RenderCopyEx(sdlRenderer, ringTexture, nullptr, &destStatic, 0.0, nullptr, SDL_FLIP_NONE);
 
             // --- 2. Calculate scaling factor for the pulsing rings ---
@@ -1838,7 +2041,7 @@ int main(int argc, char* argv[])
             SDL_SetTextureColorMod(ringLayerTextureWhite, 255, 255, 255);
             SDL_SetTextureAlphaMod(ringLayerTextureWhite, 255);
             SDL_QueryTexture(ringLayerTextureWhite, nullptr, nullptr, &texW, &texH);
-            SDL_Rect destPulsingWhite = { 288 - (int)(texW * scaleFactor) / 2, 144 - (int)(texH * scaleFactor) / 2,
+            SDL_Rect destPulsingWhite = { (288 + blockOffsetX) - (int)(texW * scaleFactor) / 2, (144 + blockOffsetY) - (int)(texH * scaleFactor) / 2,
                                           (int)(texW * scaleFactor), (int)(texH * scaleFactor) };
             SDL_RenderCopyEx(sdlRenderer, ringLayerTextureWhite, nullptr, &destPulsingWhite, 0.0, nullptr, SDL_FLIP_NONE);
 
@@ -1853,7 +2056,7 @@ int main(int argc, char* argv[])
             SDL_SetTextureColorMod(ringLayerTextureWhite, blendedColor.r, blendedColor.g, blendedColor.b);
             SDL_SetTextureAlphaMod(ringLayerTextureWhite, blendedColor.a);
             SDL_QueryTexture(ringLayerTextureWhite, nullptr, nullptr, &texW, &texH);
-            SDL_Rect destPulsing = { 288 - (int)(texW * scaleFactor) / 2, 144 - (int)(texH * scaleFactor) / 2,
+            SDL_Rect destPulsing = { (288 + blockOffsetX) - (int)(texW * scaleFactor) / 2, (144 + blockOffsetY) - (int)(texH * scaleFactor) / 2,
                                      (int)(texW * scaleFactor), (int)(texH * scaleFactor) };
             SDL_RenderCopyEx(sdlRenderer, ringLayerTextureWhite, nullptr, &destPulsing, 0.0, nullptr, SDL_FLIP_NONE);
 
@@ -1864,7 +2067,7 @@ int main(int argc, char* argv[])
             SDL_SetTextureAlphaMod(ringInnerLayerTexture, 255);
             int innerW, innerH;
             SDL_QueryTexture(ringInnerLayerTexture, nullptr, nullptr, &innerW, &innerH);
-            SDL_Rect destInnerBase = { 288 - innerW / 2, 144 - innerH / 2, innerW, innerH };
+            SDL_Rect destInnerBase = { (288 + blockOffsetX) - innerW / 2, (144+ blockOffsetY) - innerH / 2, innerW, innerH };
             SDL_RenderCopyEx(sdlRenderer, ringInnerLayerTexture, nullptr, &destInnerBase, 0.0, nullptr, SDL_FLIP_NONE);
 
             // Compute pulsing parameters for the inner ring (same as outer ring logic):
@@ -1876,7 +2079,7 @@ int main(int argc, char* argv[])
             SDL_SetTextureColorMod(ringInnerLayerTextureWhite, 255, 255, 255);
             SDL_SetTextureAlphaMod(ringInnerLayerTextureWhite, 255);
             SDL_QueryTexture(ringInnerLayerTextureWhite, nullptr, nullptr, &innerW, &innerH);
-            SDL_Rect destInnerWhite = { 288 - (int)(innerW * innerScale) / 2, 144 - (int)(innerH * innerScale) / 2,
+            SDL_Rect destInnerWhite = { (288 + blockOffsetX) - (int)(innerW * innerScale) / 2, (144 + blockOffsetY) - (int)(innerH * innerScale) / 2,
                                         (int)(innerW * innerScale), (int)(innerH * innerScale) };
             SDL_RenderCopyEx(sdlRenderer, ringInnerLayerTextureWhite, nullptr, &destInnerWhite, 0.0, nullptr, SDL_FLIP_NONE);
 
@@ -1884,7 +2087,7 @@ int main(int argc, char* argv[])
             SDL_SetTextureColorMod(ringInnerLayerTextureWhite, blendedColor.r, blendedColor.g, blendedColor.b);
             SDL_SetTextureAlphaMod(ringInnerLayerTextureWhite, blendedColor.a);
             SDL_QueryTexture(ringInnerLayerTextureWhite, nullptr, nullptr, &innerW, &innerH);
-            SDL_Rect destInnerPulsing = { 288 - (int)(innerW * innerScale) / 2, 144 - (int)(innerH * innerScale) / 2,
+            SDL_Rect destInnerPulsing = { (288 + blockOffsetX) - (int)(innerW * innerScale) / 2, (144 + blockOffsetY) - (int)(innerH * innerScale) / 2,
                                           (int)(innerW * innerScale), (int)(innerH * innerScale) };
             SDL_RenderCopyEx(sdlRenderer, ringInnerLayerTextureWhite, nullptr, &destInnerPulsing, 0.0, nullptr, SDL_FLIP_NONE);
 
@@ -1899,8 +2102,8 @@ int main(int argc, char* argv[])
             SDL_Rect dest;
             dest.w = texW;
             dest.h = texH;
-            dest.x = 288 - dest.w / 2;
-            dest.y = 144 - dest.h / 2;
+            dest.x = (288 + blockOffsetX) - dest.w / 2;
+            dest.y = (144 + blockOffsetY) - dest.h / 2;
             SDL_RenderCopyEx(sdlRenderer, ringLayerTexture, nullptr, &dest, 0.0, nullptr, SDL_FLIP_NONE);
 
             // And the inner ring texture:
@@ -1909,8 +2112,8 @@ int main(int argc, char* argv[])
             SDL_QueryTexture(ringInnerLayerTexture, nullptr, nullptr, &texW, &texH);
             dest.w = texW;
             dest.h = texH;
-            dest.x = 288 - dest.w / 2;
-            dest.y = 144 - dest.h / 2;
+            dest.x = (288 + blockOffsetX) - dest.w / 2;
+            dest.y = (144 + blockOffsetY) - dest.h / 2;
             SDL_RenderCopyEx(sdlRenderer, ringInnerLayerTexture, nullptr, &dest, 0.0, nullptr, SDL_FLIP_NONE);
 
             // Draw the crosshair annulus over the rings
@@ -1921,7 +2124,7 @@ int main(int argc, char* argv[])
                 break;
             }
             case 1: {
-                DrawThirdCrosshairAnnulusMirrored(sdlRenderer, 288, 144, ringOuterRadius, ringThickness, firstCrossThickness, firstCrossColor, thirdCrossAngleOffset);
+                DrawThirdCrosshairAnnulusMirrored(sdlRenderer, (288 + blockOffsetX), (144 + blockOffsetY), ringOuterRadius, ringThickness, firstCrossThickness, firstCrossColor, thirdCrossAngleOffset);
                 break;
             }
             default:
@@ -1943,14 +2146,14 @@ int main(int argc, char* argv[])
 
         }
 
-        int drawX = 288 +  JoyX; 
-        int drawY = 144 - JoyY; 
+        int drawX = ((288 + blockOffsetX) + blockOffsetX) + JoyX;
+        int drawY = ((144 + blockOffsetY) + blockOffsetY) - JoyY;
         float rad = std::fmin(std::sqrt((float)(JoyX * JoyX + JoyY * JoyY)), 128.0f);
         float ang = std::atan2((float)JoyY, (float)JoyX);
         int capX = (int)(rad * std::cos(ang));
         int capY = (int)(rad * std::sin(ang));
-        int drawCapX = 288 + capX; 
-        int drawCapY = 144 - capY; 
+        int drawCapX = (288 + blockOffsetX) + capX;
+        int drawCapY = (144 + blockOffsetY) - capY;
 
         SDL_Color stickLineColor;
         stickLineColor.r = stickR;
@@ -1960,7 +2163,7 @@ int main(int argc, char* argv[])
 
         //SDL_SetRenderDrawColor(sdlRenderer, stickR, stickG, stickB, 255);
         //SDL_RenderDrawLine(sdlRenderer, 288, 144, drawCapX, drawCapY);
-        DrawThickLineRect(sdlRenderer, 288, 144, drawCapX, drawCapY,3,stickLineColor);
+        DrawThickLineRect(sdlRenderer, (288 + blockOffsetX), (144 + blockOffsetY), drawCapX, drawCapY,3,stickLineColor);
 
         if (mSpeed && showMSpeedSwitch)
         {
