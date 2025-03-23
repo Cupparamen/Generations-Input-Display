@@ -1,8 +1,8 @@
-# Gens Input Display 4.0
+# Gens Input Display 4.4
 (written by AI lol)
 Based on TurtleMan64's Sonic Input Display v2.2.
 
-Gens Input Display 4.0 is a dynamic controller input visualizer written in C++ using SDL2, SDL_image, and SDL_ttf. It captures real-time game controller inputs and converts them into a customizable visual overlay. 
+Gens Input Display 4.4 is a dynamic controller input visualizer written in C++ using SDL2, SDL_image, and SDL_ttf. It captures real-time game controller inputs and converts them into a customizable visual overlay. 
 
 ## Overview
 
@@ -12,13 +12,6 @@ Gens Input Display renders a dynamic visual overlay that represents various cont
 - **Interactive Settings Dialog:** A separate SDL window allows users to adjust visual parameters (colors, sizes, pulse rates, etc.) in real time.
 - **File-Based Configuration:** Visual parameters are loaded from and saved to a configuration file (`settings.ini`).
 
-## Features
-
-### Changes to the Original
-- **Decoupled D-Pad from the Joystick:** Added independent D-Pad buttons. (Toggle coupling with F4.)
-- **Decoupled Triggers and Shoulder Buttons:** Now each trigger and shoulder button has its own visual element.
-- **Fixed Ring Boundary Issue:** Corrected the drawing of the thinner ring line so it no longer exceeds the boundary.
-
 ### Hotkeys
 - **F1:** Toggle coordinate display.
 - **F2:** Toggle an animated toon in the bottom right corner.
@@ -26,6 +19,9 @@ Gens Input Display renders a dynamic visual overlay that represents various cont
 - **F3:** Toggle M-Speed light mode, lighting up the ring and pointer when the joystick’s X and Y values match the M-Speed equation. (Set stick sensitivity to 50 in-game.)
 - **F4:** Toggle D-Pad Mode to allow D-Pad inputs to affect the ring.
 - **F5:** Cycle through available ring shapes.
+- **F6** Toggle-able button shadows
+- **F7** Cycle through available button layouts.
+  
 - **Left/Right Arrow Keys:** Switch between button sets located in the `./sets/` folder. (New sets can be added by creating a folder with the same filenames for the button images.)
 - **Up/Down Arrow Keys:** Cycle through available Toons
 - **m** opens the menu
