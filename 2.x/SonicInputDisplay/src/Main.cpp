@@ -47,14 +47,14 @@ std::vector<SDL_Texture*> toonMFrames;   // for mSpeed mode
 int ringOuterRadius = 128;   // Outer radius of the first ring.
 int ringThickness = 8;       // Thickness of the first ring.
 SDL_Color ringColor = { 255, 255, 255, 255 };         // when not M‑speed
-SDL_Color ringOutlineColor = { 0, 0, 0, 255 };        // outline
+SDL_Color ringOutlineColor = { 100, 100, 100, 240 };        // outline
 
 
 // Second ring settings
 int secondRingOuterRadius = 40;   // Outer radius of the second ring.
 int secondRingThickness = 4;      // Thickness of the second ring.
 SDL_Color secondRingColor = { 255, 255, 255, 255 };   // when not M‑speed
-SDL_Color secondRingOutlineColor = { 0, 0, 0, 255 };  // outline
+SDL_Color secondRingOutlineColor = { 100, 100, 100, 240 };  // outline
 
 // First crosshair (a + sign with an X overlay, i.e. 8 lines)
 SDL_Color firstCrossColor = { 255, 0, 0, 255 };  // red
@@ -72,7 +72,7 @@ int secondCrossLength = 12;  // adjust as desired
 
 //Global for shape
 int shapeIndex = 0;
-int shapeIndexMaximum = 4;
+int shapeIndexMaximum = 5;
 
 float effectiveRadius = 0;
 
@@ -105,6 +105,10 @@ SDL_Texture* texMessage3 = nullptr;
 SDL_Texture* ringTexture = nullptr;
 SDL_Texture* ringLayerTexture = nullptr;
 SDL_Texture* ringInnerLayerTexture = nullptr;
+SDL_Texture* ringLayerTextureWhite = nullptr;
+SDL_Texture* ringInnerLayerTextureWhite = nullptr;
+
+
 
 // Off-screen texture for static shapes
 SDL_Texture* staticOverlayTexture = nullptr;
@@ -172,6 +176,7 @@ SDL_Rect recMessage = { 184, 280, 0, 20 };
 SDL_Rect recMessage2 = { 268, 280, 0, 20 };
 SDL_Rect recMessage3 = { 380, 278, 34, 20 };
 
+SDL_Color ringFill = { 163, 163, 163, 255 };
 
 SDL_Color White = { 255, 255, 255, 255 };
 TTF_Font* Sans = nullptr;
@@ -347,31 +352,68 @@ void DrawThickLineRect(SDL_Renderer* renderer, int x1, int y1, int x2, int y2, i
     // Fill the quadrilateral.
     DrawFilledQuad(renderer, quad, color);
 }
-// Draws an octagon outline (not filled) with a given center, outer radius, and line thickness.
+
 void DrawOctagon(SDL_Renderer* renderer, int centerX, int centerY, int outerRadius, int thickness, SDL_Color color)
 {
     const int numSides = 8;
-    SDL_Point vertices[numSides];
+    SDL_Point outerVertices[numSides];
+    SDL_Point innerOutlineVertices[numSides];
+    SDL_Point outerOutlineVertices[numSides];
 
-    // Compute the 8 vertices of a regular octagon.
+    // Compute outer vertices (center line of the thick edge)
     for (int i = 0; i < numSides; i++) {
         float angle = i * (2.0f * M_PI / numSides);
-        vertices[i].x = centerX + (int)round(outerRadius * cos(angle));
-        vertices[i].y = centerY + (int)round(outerRadius * sin(angle));
+        outerVertices[i].x = centerX + (int)round(outerRadius * cos(angle));
+        outerVertices[i].y = centerY + (int)round(outerRadius * sin(angle));
+    }
+    // Compute inner outline vertices (for the inner border), at outerRadius - 1
+    int innerOutlineRadius = outerRadius - 1;
+    for (int i = 0; i < numSides; i++) {
+        float angle = i * (2.0f * M_PI / numSides);
+        innerOutlineVertices[i].x = centerX + (int)round(innerOutlineRadius * cos(angle));
+        innerOutlineVertices[i].y = centerY + (int)round(innerOutlineRadius * sin(angle));
+    }
+    // Compute outer outline vertices (offset outward by half the thickness)
+    float offset = thickness / 2.0f + 2.0f;
+    for (int i = 0; i < numSides; i++) {
+        float angle = i * (2.0f * M_PI / numSides);
+        outerOutlineVertices[i].x = centerX + (int)round(outerRadius * cos(angle) + offset * cos(angle));
+        outerOutlineVertices[i].y = centerY + (int)round(outerRadius * sin(angle) + offset * sin(angle));
     }
 
-    // Draw thick edges between each consecutive vertex.
+    // --- Step 1: Draw the inner outline (the inner border) ---
+    SDL_SetRenderDrawColor(renderer, ringOutlineColor.r, ringOutlineColor.g, ringOutlineColor.b, ringOutlineColor.a);
     for (int i = 0; i < numSides; i++) {
         int j = (i + 1) % numSides;
-        DrawThickLineRect(renderer, vertices[i].x, vertices[i].y, vertices[j].x, vertices[j].y, thickness, color);
+        SDL_RenderDrawLine(renderer,
+            innerOutlineVertices[i].x, innerOutlineVertices[i].y,
+            innerOutlineVertices[j].x, innerOutlineVertices[j].y);
     }
 
-    // Draw rounded joins at each vertex to smooth out gaps.
-    int joinRadius = thickness / 2; // adjust as needed
+    // --- Step 2: Draw the main octagon with thick edges in the given color ---
     for (int i = 0; i < numSides; i++) {
-        DrawFilledCircle(renderer, vertices[i].x, vertices[i].y, joinRadius, color);
+        int j = (i + 1) % numSides;
+        DrawThickLineRect(renderer, outerVertices[i].x, outerVertices[i].y,
+            outerVertices[j].x, outerVertices[j].y,
+            thickness, color);
+    }
+    // Draw rounded joins at the outer vertices.
+    int joinRadius = thickness / 2;
+    for (int i = 0; i < numSides; i++) {
+        DrawFilledCircle(renderer, outerVertices[i].x, outerVertices[i].y, joinRadius, color);
+    }
+
+    // --- Step 3: Draw the outer outline along the outer edge ---
+    SDL_SetRenderDrawColor(renderer, ringOutlineColor.r, ringOutlineColor.g, ringOutlineColor.b, ringOutlineColor.a);
+    for (int i = 0; i < numSides; i++) {
+        int j = (i + 1) % numSides;
+        SDL_RenderDrawLine(renderer,
+            outerOutlineVertices[i].x, outerOutlineVertices[i].y,
+            outerOutlineVertices[j].x, outerOutlineVertices[j].y);
     }
 }
+
+
 
 void DrawCircleOutline(SDL_Renderer* renderer, int centerX, int centerY, int radius, SDL_Color color)
 {
@@ -401,7 +443,24 @@ void DrawCircleOutline(SDL_Renderer* renderer, int centerX, int centerY, int rad
 
 void DrawRing(SDL_Renderer* renderer, int centerX, int centerY, int outerRadius, int thickness, SDL_Color fillColor, SDL_Color outlineColor)
 {
-    int innerRadius = outerRadius - thickness;
+    int innerRadius = outerRadius - thickness - 1;
+    
+
+    for (int dy = -outerRadius; dy <= outerRadius; dy++)
+    {
+        int dxOuter = (int)std::sqrt((float)(outerRadius * outerRadius - dy * dy));
+        int dxInner = 0;
+        if (std::abs(dy) < innerRadius)
+            dxInner = (int)std::sqrt((float)(innerRadius * innerRadius - dy * dy));
+        if (dxOuter > dxInner)
+        {
+            SDL_SetRenderDrawColor(renderer, outlineColor.r, outlineColor.g, outlineColor.b, outlineColor.a);
+            SDL_RenderDrawLine(renderer, centerX - dxOuter, centerY + dy, centerX - dxInner, centerY + dy);
+            SDL_RenderDrawLine(renderer, centerX + dxInner, centerY + dy, centerX + dxOuter, centerY + dy);
+        }
+    }
+
+    innerRadius = innerRadius + 1;
     for (int dy = -outerRadius; dy <= outerRadius; dy++)
     {
         int dxOuter = (int)std::sqrt((float)(outerRadius * outerRadius - dy * dy));
@@ -417,6 +476,7 @@ void DrawRing(SDL_Renderer* renderer, int centerX, int centerY, int outerRadius,
     }
     DrawCircleOutline(renderer, centerX, centerY, outerRadius, outlineColor);
 }
+
 
 
 // Helper: Draws one half of the crosshair line in a given direction,
@@ -569,23 +629,44 @@ void updateRingTextures() {
         SDL_DestroyTexture(ringInnerLayerTexture);
         ringInnerLayerTexture = nullptr;
     }
+    if (ringLayerTextureWhite != nullptr) {
+        SDL_DestroyTexture(ringLayerTextureWhite);
+        ringLayerTextureWhite = nullptr;
+    }
+    if (ringInnerLayerTextureWhite != nullptr) {
+        SDL_DestroyTexture(ringInnerLayerTextureWhite);
+        ringInnerLayerTextureWhite = nullptr;
+    }
 
     int centerX = 288;
     int centerY = 144;
 
-    if (shapeIndex == 0 || shapeIndex == 1 || shapeIndex == 4) {
-        // Circular case (including our new shape)
+    if (shapeIndex == 0 || shapeIndex == 1 || shapeIndex == 4 || shapeIndex == 5) {
+        // Circular case (including our new modes)
         ringTexture = createRingTexture(centerX, centerY, ringOuterRadius, ringThickness, ringColor, ringOutlineColor);
         ringLayerTexture = createRingTexture(centerX, centerY, ringOuterRadius, ringThickness, ringColor, ringOutlineColor);
         ringInnerLayerTexture = createRingTexture(centerX, centerY, secondRingOuterRadius, secondRingThickness, secondRingColor, secondRingOutlineColor);
+        // Create the dedicated white texture for the outer ring pulsing effect.
+        SDL_Color white = { 255, 255, 255, 255 };
+        ringLayerTextureWhite = createRingTexture(centerX, centerY, ringOuterRadius, ringThickness, white, white);
+        // *** NEW: Create a white texture for the inner ring pulsing effect ***
+        ringInnerLayerTextureWhite = createRingTexture(centerX, centerY, secondRingOuterRadius, secondRingThickness, white, white);
     }
     else if (shapeIndex == 2) {
-        // Octagon case remains the same.
+        // Octagon case remains unchanged for the regular textures.
         ringTexture = createOctagonTexture(centerX, centerY, ringOuterRadius - 4, ringThickness - 4, ringColor);
         ringLayerTexture = createOctagonTexture(centerX, centerY, ringOuterRadius - 4, ringThickness - 4, ringColor);
         ringInnerLayerTexture = createOctagonTexture(centerX, centerY, secondRingOuterRadius - 4, secondRingThickness - 1, secondRingColor);
+
+        // *** NEW: Create white textures for pulsing the octagon ***
+        SDL_Color white = { 255, 255, 255, 255 };
+        ringLayerTextureWhite = createOctagonTexture(centerX, centerY, ringOuterRadius - 4, ringThickness - 4, white);
+        ringInnerLayerTextureWhite = createOctagonTexture(centerX, centerY, secondRingOuterRadius - 4, secondRingThickness - 1, white);
     }
 }
+
+
+
 
 std::vector<std::string> getButtonSetFolders(const std::string& directory)
 {
@@ -976,6 +1057,12 @@ void loadSettings()
             buttonSetIndex = std::stoi(value);
         else if (key == "ToonIndex")
             toonSetIndex = std::stoi(value);
+        else if (key == "fillR")
+            ringFill.r = (Uint8)std::stoi(value);
+        else if (key == "fillG")
+            ringFill.g = (Uint8)std::stoi(value);
+        else if (key == "fillB")
+            ringFill.b = (Uint8)std::stoi(value);
     }
 
 }
@@ -1057,6 +1144,9 @@ void saveSettings()
         file << "CornerMin=" << CornerMin << "\n";
         file << "ButtonSetIndex=" << buttonSetIndex << "\n";
         file << "ToonIndex=" << toonSetIndex << "\n";
+        file << "fillR=" << (int)ringFill.r << "\n";
+        file << "fillG=" << (int)ringFill.g << "\n";
+        file << "fillB=" << (int)ringFill.b << "\n";
         file.close();
     }
 }
@@ -1226,29 +1316,54 @@ void renderStaticOverlay()
     int firstCrossLength = secondRingOuterRadius + 4;  // Based on your current code
 
     switch (shapeIndex) {
-        case 0: case 1:
-            // ----- Circular Ring Case -----
-            // Draw the annulus normally.
-            DrawThirdCrosshairAnnulusMirrored(sdlRenderer, centerX, centerY,
-                ringOuterRadius, ringThickness,
-                firstCrossThickness, firstCrossColor,
-                thirdCrossAngleOffset);
-            // Draw the first crosshair (8 rays).
-            SDL_SetRenderDrawColor(sdlRenderer, firstCrossColor.r, firstCrossColor.g, firstCrossColor.b, firstCrossColor.a);
-            for (int i = 0; i < 8; i++) {
-                float angle = i * (M_PI / 4.0f);
-                int x2 = centerX + (int)(firstCrossLength * cos(angle));
-                int y2 = centerY + (int)(firstCrossLength * sin(angle));
-                DrawThickLineRect(sdlRenderer, centerX, centerY, x2, y2, firstCrossThickness, firstCrossColor);
-            }
-            // Draw the second crosshair (plus sign).
-            SDL_SetRenderDrawColor(sdlRenderer, secondCrossColor.r, secondCrossColor.g, secondCrossColor.b, secondCrossColor.a);
-            DrawThickLine(sdlRenderer, centerX - secondCrossLength, centerY,
-                centerX + secondCrossLength, centerY, secondCrossThickness);
-            DrawThickLine(sdlRenderer, centerX, centerY - secondCrossLength,
-                centerX, centerY + secondCrossLength, secondCrossThickness);
-            break;
+    case 0: case 1: {
+        // ----- Circular Ring Case -----
+        // Draw the annulus normally.
+        DrawThirdCrosshairAnnulusMirrored(sdlRenderer, centerX, centerY,
+            ringOuterRadius, ringThickness,
+            firstCrossThickness, firstCrossColor,
+            thirdCrossAngleOffset);
+        // Draw the first crosshair (8 rays).
+        SDL_SetRenderDrawColor(sdlRenderer, firstCrossColor.r, firstCrossColor.g, firstCrossColor.b, firstCrossColor.a);
+        for (int i = 0; i < 8; i++) {
+            float angle = i * (M_PI / 4.0f);
+            int x2 = centerX + (int)(firstCrossLength * cos(angle));
+            int y2 = centerY + (int)(firstCrossLength * sin(angle));
+            DrawThickLineRect(sdlRenderer, centerX, centerY, x2, y2, firstCrossThickness, firstCrossColor);
+        }
+        // Draw the plus sign crosshair
+        // First, draw the outline using a thicker line:
+        SDL_Color outlineColor = { 0, 0, 0, 255 };
+        SDL_SetRenderDrawColor(sdlRenderer, outlineColor.r, outlineColor.g, outlineColor.b, outlineColor.a);
+        DrawThickLine(sdlRenderer, centerX - secondCrossLength, centerY,
+            centerX + secondCrossLength, centerY, secondCrossThickness + 2);
+        DrawThickLine(sdlRenderer, centerX, centerY - secondCrossLength,
+            centerX, centerY + secondCrossLength, secondCrossThickness + 2);
+        // Next, add endpoint fills for the horizontal line:
+        int capThickness = secondCrossThickness + 2;  // the thickness used for the outline
+        // Left endpoint:
+        SDL_Rect leftCap = { centerX - secondCrossLength - 1, centerY - capThickness / 2, 2, capThickness };
+        SDL_RenderFillRect(sdlRenderer, &leftCap);
+        // Right endpoint:
+        SDL_Rect rightCap = { centerX + secondCrossLength, centerY - capThickness / 2, 2, capThickness };
+        SDL_RenderFillRect(sdlRenderer, &rightCap);
+        // For the vertical line endpoints:
+        SDL_Rect topCap = { centerX - capThickness / 2, centerY - secondCrossLength - 1, capThickness, 2 };
+        SDL_RenderFillRect(sdlRenderer, &topCap);
+        // Bottom endpoint: remove the -1 offset
+        SDL_Rect bottomCap = { centerX - capThickness / 2, centerY + secondCrossLength, capThickness, 2 };
+        SDL_RenderFillRect(sdlRenderer, &bottomCap);
 
+        // Now, draw the actual plus sign on top:
+        SDL_SetRenderDrawColor(sdlRenderer, secondCrossColor.r, secondCrossColor.g, secondCrossColor.b, secondCrossColor.a);
+        DrawThickLine(sdlRenderer, centerX - secondCrossLength, centerY,
+            centerX + secondCrossLength, centerY, secondCrossThickness);
+        DrawThickLine(sdlRenderer, centerX, centerY - secondCrossLength,
+            centerX, centerY + secondCrossLength, secondCrossThickness);
+    
+          break;
+    }
+    
             case 2:
             {
                 // ----- Octagon Ring Case -----
@@ -1263,7 +1378,31 @@ void renderStaticOverlay()
                     int y2 = centerY + (int)(firstCrossLength * sin(angle));
                     DrawThickLineRect(sdlRenderer, centerX, centerY, x2, y2, firstCrossThickness, firstCrossColor);
                 }
-                // Draw the second crosshair (plus sign).
+
+                // Draw the plus sign crosshair
+                // First, draw the outline using a thicker line:
+                SDL_Color outlineColor = { 0, 0, 0, 255 };
+                SDL_SetRenderDrawColor(sdlRenderer, outlineColor.r, outlineColor.g, outlineColor.b, outlineColor.a);
+                DrawThickLine(sdlRenderer, centerX - secondCrossLength, centerY,
+                    centerX + secondCrossLength, centerY, secondCrossThickness + 2);
+                DrawThickLine(sdlRenderer, centerX, centerY - secondCrossLength,
+                    centerX, centerY + secondCrossLength, secondCrossThickness + 2);
+                // Next, add endpoint fills for the horizontal line:
+                int capThickness = secondCrossThickness + 2;  // the thickness used for the outline
+                // Left endpoint:
+                SDL_Rect leftCap = { centerX - secondCrossLength - 1, centerY - capThickness / 2, 2, capThickness };
+                SDL_RenderFillRect(sdlRenderer, &leftCap);
+                // Right endpoint:
+                SDL_Rect rightCap = { centerX + secondCrossLength, centerY - capThickness / 2, 2, capThickness };
+                SDL_RenderFillRect(sdlRenderer, &rightCap);
+                // For the vertical line endpoints:
+                SDL_Rect topCap = { centerX - capThickness / 2, centerY - secondCrossLength - 1, capThickness, 2 };
+                SDL_RenderFillRect(sdlRenderer, &topCap);
+                // Bottom endpoint: remove the -1 offset
+                SDL_Rect bottomCap = { centerX - capThickness / 2, centerY + secondCrossLength, capThickness, 2 };
+                SDL_RenderFillRect(sdlRenderer, &bottomCap);
+
+                // Now, draw the actual plus sign on top:
                 SDL_SetRenderDrawColor(sdlRenderer, secondCrossColor.r, secondCrossColor.g, secondCrossColor.b, secondCrossColor.a);
                 DrawThickLine(sdlRenderer, centerX - secondCrossLength, centerY,
                     centerX + secondCrossLength, centerY, secondCrossThickness);
@@ -1276,19 +1415,68 @@ void renderStaticOverlay()
             case 3: {
                     // ---- Filled Circle with Simple Plus Sign Crosshair ----
                     // Draw a filled circle.
-                DrawFilledCircle(sdlRenderer, centerX, centerY, ringOuterRadius, ringColor);
+                DrawFilledCircle(sdlRenderer, centerX, centerY, ringOuterRadius, ringFill);
                 // Optionally, draw an outline for the circle.
                 DrawCircleOutline(sdlRenderer, centerX, centerY, ringOuterRadius, ringOutlineColor);
-                // Draw the simple plus sign crosshair:
+
+                // Draw the plus sign crosshair
+                // First, draw the outline using a thicker line:
+                SDL_Color outlineColor = { 0, 0, 0, 255 };
+                SDL_SetRenderDrawColor(sdlRenderer, outlineColor.r, outlineColor.g, outlineColor.b, outlineColor.a);
+                DrawThickLine(sdlRenderer, centerX - secondCrossLength, centerY,
+                    centerX + secondCrossLength, centerY, secondCrossThickness + 2);
+                DrawThickLine(sdlRenderer, centerX, centerY - secondCrossLength,
+                    centerX, centerY + secondCrossLength, secondCrossThickness + 2);
+                // Next, add endpoint fills for the horizontal line:
+                int capThickness = secondCrossThickness + 2;  // the thickness used for the outline
+                // Left endpoint:
+                SDL_Rect leftCap = { centerX - secondCrossLength - 1, centerY - capThickness / 2, 2, capThickness };
+                SDL_RenderFillRect(sdlRenderer, &leftCap);
+                // Right endpoint:
+                SDL_Rect rightCap = { centerX + secondCrossLength, centerY - capThickness / 2, 2, capThickness };
+                SDL_RenderFillRect(sdlRenderer, &rightCap);
+                // For the vertical line endpoints:
+                SDL_Rect topCap = { centerX - capThickness / 2, centerY - secondCrossLength - 1, capThickness, 2 };
+                SDL_RenderFillRect(sdlRenderer, &topCap);
+                // Bottom endpoint: remove the -1 offset
+                SDL_Rect bottomCap = { centerX - capThickness / 2, centerY + secondCrossLength, capThickness, 2 };
+                SDL_RenderFillRect(sdlRenderer, &bottomCap);
+
+                // Now, draw the actual plus sign on top:
                 SDL_SetRenderDrawColor(sdlRenderer, secondCrossColor.r, secondCrossColor.g, secondCrossColor.b, secondCrossColor.a);
-                DrawThickLine(sdlRenderer, centerX - secondCrossLength, centerY, centerX + secondCrossLength, centerY, secondCrossThickness);
-                DrawThickLine(sdlRenderer, centerX, centerY - secondCrossLength, centerX, centerY + secondCrossLength, secondCrossThickness);
+                DrawThickLine(sdlRenderer, centerX - secondCrossLength, centerY,
+                    centerX + secondCrossLength, centerY, secondCrossThickness);
+                DrawThickLine(sdlRenderer, centerX, centerY - secondCrossLength,
+                    centerX, centerY + secondCrossLength, secondCrossThickness);
                 }
                   break;
             case 4:
             {
 
-                // Draw the second crosshair (simple plus sign) as in the circular case:
+                // Draw the plus sign crosshair
+                // First, draw the outline using a thicker line:
+                SDL_Color outlineColor = { 0, 0, 0, 255 };
+                SDL_SetRenderDrawColor(sdlRenderer, outlineColor.r, outlineColor.g, outlineColor.b, outlineColor.a);
+                DrawThickLine(sdlRenderer, centerX - secondCrossLength, centerY,
+                    centerX + secondCrossLength, centerY, secondCrossThickness + 2);
+                DrawThickLine(sdlRenderer, centerX, centerY - secondCrossLength,
+                    centerX, centerY + secondCrossLength, secondCrossThickness + 2);
+                // Next, add endpoint fills for the horizontal line:
+                int capThickness = secondCrossThickness + 2;  // the thickness used for the outline
+                // Left endpoint:
+                SDL_Rect leftCap = { centerX - secondCrossLength - 1, centerY - capThickness / 2, 2, capThickness };
+                SDL_RenderFillRect(sdlRenderer, &leftCap);
+                // Right endpoint:
+                SDL_Rect rightCap = { centerX + secondCrossLength, centerY - capThickness / 2, 2, capThickness };
+                SDL_RenderFillRect(sdlRenderer, &rightCap);
+                // For the vertical line endpoints:
+                SDL_Rect topCap = { centerX - capThickness / 2, centerY - secondCrossLength - 1, capThickness, 2 };
+                SDL_RenderFillRect(sdlRenderer, &topCap);
+                // Bottom endpoint: remove the -1 offset
+                SDL_Rect bottomCap = { centerX - capThickness / 2, centerY + secondCrossLength, capThickness, 2 };
+                SDL_RenderFillRect(sdlRenderer, &bottomCap);
+
+                // Now, draw the actual plus sign on top:
                 SDL_SetRenderDrawColor(sdlRenderer, secondCrossColor.r, secondCrossColor.g, secondCrossColor.b, secondCrossColor.a);
                 DrawThickLine(sdlRenderer, centerX - secondCrossLength, centerY,
                     centerX + secondCrossLength, centerY, secondCrossThickness);
@@ -1296,7 +1484,111 @@ void renderStaticOverlay()
                     centerX, centerY + secondCrossLength, secondCrossThickness);
                 break;
             }
-       
+            case 5:
+            {
+                // --- Base Drawing: Same as mode 4 (circular ring without the red X crosshair) ---
+
+                // Draw a filled circle.
+                DrawFilledCircle(sdlRenderer, centerX, centerY, ringOuterRadius, ringFill);
+
+
+                // Draw the plus sign crosshair
+                // First, draw the outline using a thicker line:
+                SDL_Color outlineColor = { 0, 0, 0, 255 };
+                SDL_SetRenderDrawColor(sdlRenderer, outlineColor.r, outlineColor.g, outlineColor.b, outlineColor.a);
+                DrawThickLine(sdlRenderer, centerX - secondCrossLength, centerY,
+                    centerX + secondCrossLength, centerY, secondCrossThickness + 2);
+                DrawThickLine(sdlRenderer, centerX, centerY - secondCrossLength,
+                    centerX, centerY + secondCrossLength, secondCrossThickness + 2);
+                // Next, add endpoint fills for the horizontal line:
+                int capThickness = secondCrossThickness + 2;  // the thickness used for the outline
+                // Left endpoint:
+                SDL_Rect leftCap = { centerX - secondCrossLength - 1, centerY - capThickness / 2, 2, capThickness };
+                SDL_RenderFillRect(sdlRenderer, &leftCap);
+                // Right endpoint:
+                SDL_Rect rightCap = { centerX + secondCrossLength, centerY - capThickness / 2, 2, capThickness };
+                SDL_RenderFillRect(sdlRenderer, &rightCap);
+                // For the vertical line endpoints:
+                SDL_Rect topCap = { centerX - capThickness / 2, centerY - secondCrossLength - 1, capThickness, 2 };
+                SDL_RenderFillRect(sdlRenderer, &topCap);
+                // Bottom endpoint: remove the -1 offset
+                SDL_Rect bottomCap = { centerX - capThickness / 2, centerY + secondCrossLength, capThickness, 2 };
+                SDL_RenderFillRect(sdlRenderer, &bottomCap);
+
+                // Now, draw the actual plus sign on top:
+                SDL_SetRenderDrawColor(sdlRenderer, secondCrossColor.r, secondCrossColor.g, secondCrossColor.b, secondCrossColor.a);
+                DrawThickLine(sdlRenderer, centerX - secondCrossLength, centerY,
+                    centerX + secondCrossLength, centerY, secondCrossThickness);
+                DrawThickLine(sdlRenderer, centerX, centerY - secondCrossLength,
+                    centerX, centerY + secondCrossLength, secondCrossThickness);
+
+                // --- New Clock Markers: 12 medium lines and 4 small lines between each medium line ---
+                // Define marker parameters. Adjust these constants as needed.
+                const int mediumLineLength = 20;        // Length of major (medium) markers
+                const int mediumLineThickness = 4;        // Thickness of medium markers
+                const int smallLineLength = 4;  // Small markers are half as long
+                const int smallLineThickness = 4;  // Optionally use half the thickness
+
+                // Choose a color for the markers (for example, use firstCrossColor or define a new one)
+                SDL_Color markerColor = ringColor;
+
+                // The starting radius for these markers is the inner edge of the outer ring:
+                int baseRadius = ringOuterRadius - ringThickness;
+
+                // Draw 12 major markers (one every 30°)
+                for (int i = 0; i < 12; i++) {
+                    float angle = i * (M_PI / 6.0f);  // 360°/12 = 30° in radians
+
+                    // Compute the start point on the inner edge of the ring.
+                    int sx = centerX + (int)(baseRadius * cos(angle));
+                    int sy = centerY + (int)(baseRadius * sin(angle));
+
+                    // End point is mediumLineLength inward.
+                    int ex = centerX + (int)((baseRadius - mediumLineLength) * cos(angle));
+                    int ey = centerY + (int)((baseRadius - mediumLineLength) * sin(angle));
+
+                    // Compute a perpendicular offset for the thickness.
+                    float offsetX = (mediumLineThickness / 2.0f) * (-sin(angle));
+                    float offsetY = (mediumLineThickness / 2.0f) * (cos(angle));
+
+                    SDL_Point quad[4];
+                    quad[0] = { sx + (int)round(offsetX), sy + (int)round(offsetY) };
+                    quad[1] = { sx - (int)round(offsetX), sy - (int)round(offsetY) };
+                    quad[2] = { ex - (int)round(offsetX), ey - (int)round(offsetY) };
+                    quad[3] = { ex + (int)round(offsetX), ey + (int)round(offsetY) };
+
+                    // Draw the filled marker.
+                    DrawFilledQuad(sdlRenderer, quad, markerColor);
+                }
+                // Draw 4 small markers between each major marker.
+                // In each 30° interval, divide the gap into 5 equal segments.
+                // The small markers will be drawn at offsets: 1/5, 2/5, 3/5, and 4/5 of the interval.
+                for (int i = 0; i < 12; i++) {
+                    float baseAngle = i * (M_PI / 6.0f);
+                    for (int j = 1; j <= 4; j++) {
+                        // Angle offset: each small marker is separated by (π/6)/5 = π/30
+                        float angle = baseAngle + j * (M_PI / 30.0f);
+
+                        int sx = centerX + (int)(baseRadius * cos(angle));
+                        int sy = centerY + (int)(baseRadius * sin(angle));
+                        int ex = centerX + (int)((baseRadius - smallLineLength) * cos(angle));
+                        int ey = centerY + (int)((baseRadius - smallLineLength) * sin(angle));
+
+                        // Use a smaller thickness.
+                        float offsetX = (smallLineThickness / 2.0f) * (-sin(angle));
+                        float offsetY = (smallLineThickness / 2.0f) * (cos(angle));
+
+                        SDL_Point quad[4];
+                        quad[0] = { sx + (int)round(offsetX), sy + (int)round(offsetY) };
+                        quad[1] = { sx - (int)round(offsetX), sy - (int)round(offsetY) };
+                        quad[2] = { ex - (int)round(offsetX), ey - (int)round(offsetY) };
+                        quad[3] = { ex + (int)round(offsetX), ey + (int)round(offsetY) };
+                        DrawFilledQuad(sdlRenderer, quad, markerColor);
+                    }
+              
+                }
+                break;
+            }
     // Add additional cases if needed.
     }
 
@@ -1527,69 +1819,75 @@ int main(int argc, char* argv[])
 
         if (mSpeed && showMSpeedSwitch)
         {
-            // --- 1. Render the static outer ring ---
+            // --- 1. Render the static outer ring (using your original ringTexture) ---
             SDL_SetTextureColorMod(ringTexture, joystickGlowColor.r, joystickGlowColor.g, joystickGlowColor.b);
             SDL_SetTextureAlphaMod(ringTexture, 255);
             int texW, texH;
             SDL_QueryTexture(ringTexture, nullptr, nullptr, &texW, &texH);
-            SDL_Rect destStatic;
-            destStatic.w = texW;
-            destStatic.h = texH;
-            destStatic.x = 288 - texW / 2;
-            destStatic.y = 144 - texH / 2;
+            SDL_Rect destStatic = { 288 - texW / 2, 144 - texH / 2, texW, texH };
             SDL_RenderCopyEx(sdlRenderer, ringTexture, nullptr, &destStatic, 0.0, nullptr, SDL_FLIP_NONE);
 
-            // --- 2. Render the pulsing (scaling) outer ring on top ---
+            // --- 2. Calculate scaling factor for the pulsing rings ---
             float t = fmod(SDL_GetTicks() * pulseRate, 2.0f);
-            float interp = (t < 1.0f) ? t : (2.0f - t);  // 0->1->0 sawtooth waveform.
+            float interp = (t < 1.0f) ? t : (2.0f - t);
             int extra = (int)(pulseAmplitude * interp);
             int newRadius = ringOuterRadius + extra;
             float scaleFactor = (float)newRadius / (float)ringOuterRadius;
 
-            // Compute a blended color between joystickGlowColor and secondGlowColor
+            // --- 3. Render the white pulsing ring using the white texture ---
+            SDL_SetTextureColorMod(ringLayerTextureWhite, 255, 255, 255);
+            SDL_SetTextureAlphaMod(ringLayerTextureWhite, 255);
+            SDL_QueryTexture(ringLayerTextureWhite, nullptr, nullptr, &texW, &texH);
+            SDL_Rect destPulsingWhite = { 288 - (int)(texW * scaleFactor) / 2, 144 - (int)(texH * scaleFactor) / 2,
+                                          (int)(texW * scaleFactor), (int)(texH * scaleFactor) };
+            SDL_RenderCopyEx(sdlRenderer, ringLayerTextureWhite, nullptr, &destPulsingWhite, 0.0, nullptr, SDL_FLIP_NONE);
+
+            // --- 4. Compute the blended color ---
             SDL_Color blendedColor;
             blendedColor.r = (Uint8)(joystickGlowColor.r * (1 - interp) + secondGlowColor.r * interp);
             blendedColor.g = (Uint8)(joystickGlowColor.g * (1 - interp) + secondGlowColor.g * interp);
             blendedColor.b = (Uint8)(joystickGlowColor.b * (1 - interp) + secondGlowColor.b * interp);
             blendedColor.a = 255;
 
-            SDL_SetTextureColorMod(ringLayerTexture, blendedColor.r, blendedColor.g, blendedColor.b);
-            SDL_SetTextureAlphaMod(ringLayerTexture, blendedColor.a);
-            SDL_QueryTexture(ringLayerTexture, nullptr, nullptr, &texW, &texH);
-            SDL_Rect destPulsing;
-            destPulsing.w = (int)(texW * scaleFactor);
-            destPulsing.h = (int)(texH * scaleFactor);
-            destPulsing.x = 288 - destPulsing.w / 2;
-            destPulsing.y = 144 - destPulsing.h / 2;
-            SDL_RenderCopyEx(sdlRenderer, ringLayerTexture, nullptr, &destPulsing, 0.0, nullptr, SDL_FLIP_NONE);
+            // --- 5. Render the pulsing (scaling) outer ring with the blended color on top ---
+            SDL_SetTextureColorMod(ringLayerTextureWhite, blendedColor.r, blendedColor.g, blendedColor.b);
+            SDL_SetTextureAlphaMod(ringLayerTextureWhite, blendedColor.a);
+            SDL_QueryTexture(ringLayerTextureWhite, nullptr, nullptr, &texW, &texH);
+            SDL_Rect destPulsing = { 288 - (int)(texW * scaleFactor) / 2, 144 - (int)(texH * scaleFactor) / 2,
+                                     (int)(texW * scaleFactor), (int)(texH * scaleFactor) };
+            SDL_RenderCopyEx(sdlRenderer, ringLayerTextureWhite, nullptr, &destPulsing, 0.0, nullptr, SDL_FLIP_NONE);
 
+            // --- Render the inner ring ---
 
-            // Now render the inner ring:
-
-            SDL_SetTextureColorMod(ringInnerLayerTexture, blendedColor.r, blendedColor.g, blendedColor.b);
-            SDL_SetTextureAlphaMod(ringInnerLayerTexture, blendedColor.a);
+            // (A) Render the inner ring base with joystickGlowColor:
+            SDL_SetTextureColorMod(ringInnerLayerTexture, joystickGlowColor.r, joystickGlowColor.g, joystickGlowColor.b);
+            SDL_SetTextureAlphaMod(ringInnerLayerTexture, 255);
             int innerW, innerH;
             SDL_QueryTexture(ringInnerLayerTexture, nullptr, nullptr, &innerW, &innerH);
-            SDL_Rect destInner;
-            destInner.w = innerW;
-            destInner.h = innerH;
-            destInner.x = 288 - destInner.w / 2;
-            destInner.y = 144 - destInner.h / 2;
-            SDL_RenderCopyEx(sdlRenderer, ringInnerLayerTexture, nullptr, &destInner, 0.0, nullptr, SDL_FLIP_NONE);
+            SDL_Rect destInnerBase = { 288 - innerW / 2, 144 - innerH / 2, innerW, innerH };
+            SDL_RenderCopyEx(sdlRenderer, ringInnerLayerTexture, nullptr, &destInnerBase, 0.0, nullptr, SDL_FLIP_NONE);
 
+            // Compute pulsing parameters for the inner ring (same as outer ring logic):
             int extraInner = (int)(pulseAmplitude * interp);
             int newInnerRadius = secondRingOuterRadius + extraInner;
             float innerScale = (float)newInnerRadius / (float)secondRingOuterRadius;
 
-            SDL_SetTextureColorMod(ringInnerLayerTexture, blendedColor.r, blendedColor.g, blendedColor.b);
-            SDL_SetTextureAlphaMod(ringInnerLayerTexture, blendedColor.a);
-            SDL_QueryTexture(ringInnerLayerTexture, nullptr, nullptr, &texW, &texH);
-            SDL_Rect destInnerPulsing;
-            destInnerPulsing.w = (int)(texW * innerScale);
-            destInnerPulsing.h = (int)(texH * innerScale);
-            destInnerPulsing.x = 288 - destInnerPulsing.w / 2;
-            destInnerPulsing.y = 144 - destInnerPulsing.h / 2;
-            SDL_RenderCopyEx(sdlRenderer, ringInnerLayerTexture, nullptr, &destInnerPulsing, 0.0, nullptr, SDL_FLIP_NONE);
+            // (B) Render the white pulsing inner ring base:
+            SDL_SetTextureColorMod(ringInnerLayerTextureWhite, 255, 255, 255);
+            SDL_SetTextureAlphaMod(ringInnerLayerTextureWhite, 255);
+            SDL_QueryTexture(ringInnerLayerTextureWhite, nullptr, nullptr, &innerW, &innerH);
+            SDL_Rect destInnerWhite = { 288 - (int)(innerW * innerScale) / 2, 144 - (int)(innerH * innerScale) / 2,
+                                        (int)(innerW * innerScale), (int)(innerH * innerScale) };
+            SDL_RenderCopyEx(sdlRenderer, ringInnerLayerTextureWhite, nullptr, &destInnerWhite, 0.0, nullptr, SDL_FLIP_NONE);
+
+            // (C) Render the pulsing overlay with the blended color on top:
+            SDL_SetTextureColorMod(ringInnerLayerTextureWhite, blendedColor.r, blendedColor.g, blendedColor.b);
+            SDL_SetTextureAlphaMod(ringInnerLayerTextureWhite, blendedColor.a);
+            SDL_QueryTexture(ringInnerLayerTextureWhite, nullptr, nullptr, &innerW, &innerH);
+            SDL_Rect destInnerPulsing = { 288 - (int)(innerW * innerScale) / 2, 144 - (int)(innerH * innerScale) / 2,
+                                          (int)(innerW * innerScale), (int)(innerH * innerScale) };
+            SDL_RenderCopyEx(sdlRenderer, ringInnerLayerTextureWhite, nullptr, &destInnerPulsing, 0.0, nullptr, SDL_FLIP_NONE);
+
         }
         else
         {
