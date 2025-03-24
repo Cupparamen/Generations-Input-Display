@@ -114,12 +114,12 @@ int clampIntValue(const std::string& key, int value) {
     else if (key == "stickR" || key == "stickG" || key == "stickB" ||
         key == "joystickCircleColorR" || key == "joystickCircleColorG" || key == "joystickCircleColorB" ||
         key == "secondCrossColorR" || key == "secondCrossColorG" || key == "secondCrossColorB" ||
-        key == "firstCrossColorR" || key == "firstCrossColorG" || key == "firstCrossColorB" ||
+        key == "firstCrossColorR" || key == "firstCrossColorG" || key == "firstCrossColorB" || key == "firstCrossColorA" ||
         key == "ringColorR" || key == "ringColorG" || key == "ringColorB" ||
         key == "secondRingColorR" || key == "secondRingColorG" || key == "secondRingColorB" ||
         key == "joystickGlowColorR" || key == "joystickGlowColorG" || key == "joystickGlowColorB" ||
         key == "secondGlowColorR" || key == "secondGlowColorG" || key == "secondGlowColorB" ||
-        key == "bgR" || key == "bgG" || key == "bgB" || key == "fillColorR" || key == "fillColorG" || key == "fillColorB") {
+        key == "bgR" || key == "bgG" || key == "bgB" || key == "fillColorR" || key == "fillColorG" || key == "fillColorB" || key == "fillColorA") {
         if (value < 0) value = 0;
         if (value > 255) value = 255;
         return value;
@@ -181,7 +181,7 @@ SDL_Color DialogMenu::getDynamicColorForField(const std::string& key) {
 DialogMenu::DialogMenu()
     : active(false), selectedField(0), font(nullptr), dialogWindow(nullptr), dialogRenderer(nullptr)
 {
-    optionsRect = { 10, 10, 780, 450 };
+    optionsRect = { 10, 10, 780, 420 };
     bgColor = { 50, 50, 50, 230 };
     borderColor = { 200, 200, 200, 255 };
 }
@@ -261,6 +261,7 @@ void DialogMenu::refreshFields() {
     fields.push_back({ "fillColorR", "Fill Color (R)", SET_INT, std::to_string(ringFill.r) });
     fields.push_back({ "fillColorG", "Fill Color (G)", SET_INT, std::to_string(ringFill.g) });
     fields.push_back({ "fillColorB", "Fill Color (B)", SET_INT, std::to_string(ringFill.b) });
+    fields.push_back({ "fillColorA", "Fill Color (A)", SET_INT, std::to_string(ringFill.a) });
     fields.push_back({ "circleSize", "Reticle Size", SET_INT, std::to_string(circleSize) });
     fields.push_back({ "joystickCircleColorR", "Reticle Color (R)", SET_INT, std::to_string(joystickCircleColor.r) });
     fields.push_back({ "joystickCircleColorG", "Reticle Color (G)", SET_INT, std::to_string(joystickCircleColor.g) });
@@ -272,6 +273,7 @@ void DialogMenu::refreshFields() {
     fields.push_back({ "firstCrossColorR", "Markings Color (R)", SET_INT, std::to_string(firstCrossColor.r) });
     fields.push_back({ "firstCrossColorG", "Markings Color (G)", SET_INT, std::to_string(firstCrossColor.g) });
     fields.push_back({ "firstCrossColorB", "Markings Color (B)", SET_INT, std::to_string(firstCrossColor.b) });
+    fields.push_back({ "firstCrossColorA", "Markings Color (A)", SET_INT, std::to_string(firstCrossColor.a) });
 
     // Group 4: Ring Settings
 
@@ -332,9 +334,19 @@ void DialogMenu::handleEvent(const SDL_Event& e) {
         }
     }
     if (e.type == SDL_MOUSEBUTTONDOWN) {
-
         int mx = e.button.x, my = e.button.y;
+        // Define the Apply button rectangle using optionsRect.
         SDL_Rect applyRect = { optionsRect.x, optionsRect.y + optionsRect.h + 10, optionsRect.w, 30 };
+
+        // First, check if the click is within the Apply button.
+        if (mx >= applyRect.x && mx < applyRect.x + applyRect.w &&
+            my >= applyRect.y && my < applyRect.y + applyRect.h) {
+            applyChanges();
+            setActive(false);
+            return;
+        }
+
+        // Then, check the field rectangles.
         for (size_t i = 0; i < fieldRects.size(); i++) {
             SDL_Rect r = fieldRects[i];
             if (mx >= r.x && mx < (r.x + r.w) &&
@@ -342,12 +354,6 @@ void DialogMenu::handleEvent(const SDL_Event& e) {
                 selectedField = i; // Set the clicked field as selected.
                 break;
             }
-        }
-        if (mx >= applyRect.x && mx < applyRect.x + applyRect.w &&
-            my >= applyRect.y && my < applyRect.y + applyRect.h) {
-            applyChanges();
-            setActive(false);
-            return;
         }
     }
     if (e.type == SDL_KEYDOWN) {
@@ -720,12 +726,16 @@ bool DialogMenu::applyChanges() {
             firstCrossColor.g = (Uint8)parseInt(field.valueStr, firstCrossColor.g);
         else if (field.key == "firstCrossColorB")
             firstCrossColor.b = (Uint8)parseInt(field.valueStr, firstCrossColor.b);
+        else if (field.key == "firstCrossColorA")
+            firstCrossColor.a = (Uint8)parseInt(field.valueStr, firstCrossColor.a);
         else if (field.key == "fillColorR")
             ringFill.r = (Uint8)parseInt(field.valueStr, ringFill.r);
         else if (field.key == "fillColorG")
             ringFill.g = (Uint8)parseInt(field.valueStr, ringFill.g);
         else if (field.key == "fillColorB")
             ringFill.b = (Uint8)parseInt(field.valueStr, ringFill.b);
+        else if (field.key == "fillColorA")
+            ringFill.a = (Uint8)parseInt(field.valueStr, ringFill.a);
         else if (field.key == "shapeIndex")
             shapeIndex = parseInt(field.valueStr, shapeIndex);
         else if (field.key == "ringOuterRadius")
