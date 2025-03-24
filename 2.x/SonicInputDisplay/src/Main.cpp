@@ -1133,6 +1133,8 @@ void loadSettings()
             firstCrossColor.g = (Uint8)std::stoi(value);
         else if (key == "firstCrossColorB")
             firstCrossColor.b = (Uint8)std::stoi(value);
+        else if (key == "firstCrossColorA")
+            firstCrossColor.a = (Uint8)std::stoi(value);
         else if (key == "secondGlowColorR")
             secondGlowColor.r = (Uint8)std::stoi(value);
         else if (key == "secondGlowColorG")
@@ -1156,6 +1158,8 @@ void loadSettings()
             ringFill.g = (Uint8)std::stoi(value);
         else if (key == "fillB")
             ringFill.b = (Uint8)std::stoi(value);
+        else if (key == "fillA")
+            ringFill.a = (Uint8)std::stoi(value);
         else if (key == "staticButtonOverlaySwitch")
             staticButtonOverlaySwitch = (std::stoi(value) == 1);
         else if (key == "staticButtonOpacity")
@@ -1234,6 +1238,7 @@ void saveSettings()
         file << "firstCrossColorR=" << (int)firstCrossColor.r << "\n";
         file << "firstCrossColorG=" << (int)firstCrossColor.g << "\n";
         file << "firstCrossColorB=" << (int)firstCrossColor.b << "\n";
+        file << "firstCrossColorA=" << (int)firstCrossColor.a << "\n";
         file << "secondGlowColorR=" << (int)secondGlowColor.r << "\n";
         file << "secondGlowColorG=" << (int)secondGlowColor.g << "\n";
         file << "secondGlowColorB=" << (int)secondGlowColor.b << "\n";
@@ -1246,6 +1251,7 @@ void saveSettings()
         file << "fillR=" << (int)ringFill.r << "\n";
         file << "fillG=" << (int)ringFill.g << "\n";
         file << "fillB=" << (int)ringFill.b << "\n";
+        file << "fillA=" << (int)ringFill.a << "\n";
         file << "staticButtonOverlaySwitch=" << (staticButtonOverlaySwitch ? "1" : "0") << "\n";
         file << "staticButtonOpacity=" << staticButtonOpacity << "\n";
         file << "buttonSetLayoutIndex=" << buttonSetLayoutIndex << "\n";
