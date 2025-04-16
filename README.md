@@ -1,4 +1,4 @@
-# Gens Input Display 4.4
+# Gens Input Display 4.42
 (written by AI lol)
 Based on TurtleMan64's Sonic Input Display v2.2.
 
@@ -49,6 +49,9 @@ https://github.com/TurtleMan64/SADX-SA2-Input-Display/releases/tag/v2.2
 
 Ranbin: Unleashed Button Set
 https://www.youtube.com/@R_A_N_B_I_N
+
+ Avikaielef: Unleashed Button Sets
+ https://www.youtube.com/@Avikaielef
  
 #### How to compile:     
 
