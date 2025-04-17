@@ -1464,6 +1464,10 @@ void renderStaticOverlay()
 
     switch (shapeIndex) {
     case 0: case 1: {
+
+
+        // Draw a filled circle.
+        DrawFilledCircle(sdlRenderer, centerX, centerY, ringOuterRadius, ringFill);
         // ----- Circular Ring Case -----
         // Draw the annulus normally.
         DrawThirdCrosshairAnnulusMirrored(sdlRenderer, centerX, centerY,
@@ -1560,6 +1564,7 @@ void renderStaticOverlay()
             }
             break;
             case 3: {
+
                     // ---- Filled Circle with Simple Plus Sign Crosshair ----
                     // Draw a filled circle.
                 DrawFilledCircle(sdlRenderer, centerX, centerY, ringOuterRadius, ringFill);
@@ -1599,6 +1604,9 @@ void renderStaticOverlay()
                   break;
             case 4:
             {
+
+                // Draw a filled circle.
+                DrawFilledCircle(sdlRenderer, centerX, centerY, ringOuterRadius, ringFill);
 
                 // Draw the plus sign crosshair
                 // First, draw the outline using a thicker line:
