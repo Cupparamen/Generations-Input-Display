@@ -1,4 +1,4 @@
-# Gens Input Display 4.42
+# Gens Input Display 4.43
 (written by AI lol)
 Based on TurtleMan64's Sonic Input Display v2.2.
 
